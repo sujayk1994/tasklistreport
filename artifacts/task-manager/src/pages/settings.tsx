@@ -37,6 +37,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+
+const DIAGNOSTICS_VISIBLE_KEY = "settings:diagnosticsVisible";
 
 const settingsSchema = z.object({
   recipientEmails: z.string().optional().default(""),
@@ -101,6 +105,10 @@ export default function Settings() {
   const [diagnostics, setDiagnostics] = useState<EmailDiagnostics | null>(null);
   const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
   const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+  const [diagnosticsVisible, setDiagnosticsVisible] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(DIAGNOSTICS_VISIBLE_KEY) === "true";
+  });
 
   const refreshDiagnostics = async () => {
     setDiagnosticsLoading(true);
@@ -115,11 +123,21 @@ export default function Settings() {
     }
   };
 
+  // Only fetch diagnostics when the panel is actually visible — no point
+  // hitting the endpoint if the user has the panel turned off.
   useEffect(() => {
-    void refreshDiagnostics();
-    // initial load only — user refreshes manually after that
+    if (diagnosticsVisible) {
+      void refreshDiagnostics();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [diagnosticsVisible]);
+
+  const handleToggleDiagnostics = (next: boolean) => {
+    setDiagnosticsVisible(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(DIAGNOSTICS_VISIBLE_KEY, String(next));
+    }
+  };
 
   const form = useForm<SettingsValues>({
     resolver: zodResolver(settingsSchema),
@@ -155,8 +173,7 @@ export default function Settings() {
         } else {
           toast.success(res?.message || "Test email sent");
         }
-        // Pull the fresh diagnostics so the panel reflects this attempt.
-        void refreshDiagnostics();
+        if (diagnosticsVisible) void refreshDiagnostics();
       },
       onError: (err: any) => {
         const msg =
@@ -165,7 +182,7 @@ export default function Settings() {
           err?.message ||
           "Failed to send test email";
         toast.error(msg);
-        void refreshDiagnostics();
+        if (diagnosticsVisible) void refreshDiagnostics();
       },
     });
   };
@@ -261,9 +278,36 @@ export default function Settings() {
 
       {/*
         TEMPORARY DIAGNOSTICS PANEL
-        Remove this whole <Card> (and the diagnostics route on the server)
+        Remove this whole block (and the diagnostics route on the server)
         once the email send is verified working in production.
       */}
+      <div className="flex items-center justify-between gap-4 rounded-lg border border-border/60 bg-card/40 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <Stethoscope className="w-4 h-4 text-amber-600 shrink-0" />
+          <div>
+            <Label
+              htmlFor="diagnostics-toggle"
+              className="text-sm font-medium cursor-pointer"
+            >
+              Show email diagnostics{" "}
+              <span className="text-xs font-normal text-muted-foreground">
+                (temporary)
+              </span>
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Surfaces the last submit / test email result so failures are
+              visible.
+            </p>
+          </div>
+        </div>
+        <Switch
+          id="diagnostics-toggle"
+          checked={diagnosticsVisible}
+          onCheckedChange={handleToggleDiagnostics}
+        />
+      </div>
+
+      {diagnosticsVisible && (
       <Card className="border-amber-300/60 bg-amber-50/40 dark:bg-amber-950/20 shadow-sm">
         <CardHeader>
           <div className="flex items-start justify-between gap-4">
@@ -418,6 +462,7 @@ export default function Settings() {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   );
 }
