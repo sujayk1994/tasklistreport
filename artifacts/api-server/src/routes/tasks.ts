@@ -493,24 +493,30 @@ router.post("/tasks/today/test-email", requireAuth, async (req, res) => {
 
   const recipientEmails = settings?.recipientEmails ?? "";
 
-  const emailResult = await sendDailyReport(
-    recipientEmails,
-    today,
-    tasks.map((t) => ({
-      text: t.text,
-      completed: t.completed,
-      note: t.note ?? "",
-      postedForFuture: t.postedForFuture,
-    })),
-    userId,
-    { test: true },
-  );
-
-  if (!emailResult.success) {
-    res.status(502).json(emailResult);
-    return;
+  let emailResult: { success: boolean; message: string };
+  try {
+    emailResult = await sendDailyReport(
+      recipientEmails,
+      today,
+      tasks.map((t) => ({
+        text: t.text,
+        completed: t.completed,
+        note: t.note ?? "",
+        postedForFuture: t.postedForFuture,
+      })),
+      userId,
+      { test: true },
+    );
+  } catch (err: any) {
+    emailResult = {
+      success: false,
+      message: `Test email crashed: ${err?.message ?? "Unknown error"}`,
+    };
   }
 
+  // Always 200 — the client reads {success, message} either way and shows
+  // the result in a toast / the diagnostics panel. Returning a non-2xx here
+  // makes the React Query client throw and hides the message from the UI.
   res.json(emailResult);
 });
 
