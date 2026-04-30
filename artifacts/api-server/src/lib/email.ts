@@ -82,6 +82,10 @@ function createTransport(): Transporter | null {
     port,
     secure,
     auth: { user: gmailUser, pass: gmailPass },
+    // Force IPv4 — many container hosts (Render included) advertise IPv6
+    // via DNS but have no working IPv6 route, so without this Node may
+    // pick an AAAA record and fail with ENETUNREACH.
+    family: 4,
     // Hard timeouts — if SMTP is unreachable for any reason the send
     // fails fast with a clear error instead of holding the HTTP request
     // open until the client gives up.
