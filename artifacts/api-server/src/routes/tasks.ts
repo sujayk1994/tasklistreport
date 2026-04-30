@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, taskListsTable, tasksTable, userSettingsTable } from "@workspace/db";
 import { eq, and, desc, ilike, or } from "drizzle-orm";
 import { requireAuth, getUserId } from "../lib/auth";
-import { sendDailyReport } from "../lib/email";
+import { sendDailyReport, renderDailyReportHtml } from "../lib/email";
 import { ensureTodayList, getLocalDateString } from "../lib/carryover";
 import { triggerShipmentForCompletedPrint } from "../lib/inbox";
 
@@ -585,6 +585,64 @@ router.post("/tasks/today/submit", requireAuth, async (req, res) => {
   }
 
   res.json(emailResult);
+});
+
+// ---------------------------------------------------------------------------
+// Submit + download report (no email)
+// ---------------------------------------------------------------------------
+//
+// Used when the user has set "Send report" → "Download" in Settings. Marks
+// the day submitted (same write the email path does) and returns the
+// rendered HTML so the browser can save it as a file. No SMTP / Resend
+// involvement at all, so this works even if email is misconfigured.
+// ---------------------------------------------------------------------------
+
+router.post("/tasks/today/submit-and-download", requireAuth, async (req, res) => {
+  const userId = getUserId(req);
+  const today = getLocalDateString();
+
+  const [taskList] = await db
+    .select()
+    .from(taskListsTable)
+    .where(and(eq(taskListsTable.userId, userId), eq(taskListsTable.date, today)))
+    .limit(1);
+
+  if (!taskList) {
+    res.status(404).json({ success: false, message: "No task list for today." });
+    return;
+  }
+
+  if (!taskList.submitted) {
+    await db
+      .update(taskListsTable)
+      .set({ submitted: true, submittedAt: new Date() })
+      .where(eq(taskListsTable.id, taskList.id));
+  }
+
+  const tasks = await db
+    .select()
+    .from(tasksTable)
+    .where(eq(tasksTable.taskListId, taskList.id))
+    .orderBy(tasksTable.position);
+
+  const rendered = renderDailyReportHtml(
+    today,
+    tasks.map((t) => ({
+      text: t.text,
+      completed: t.completed,
+      note: t.note ?? "",
+      postedForFuture: t.postedForFuture,
+    })),
+    userId,
+  );
+
+  res.json({
+    success: true,
+    message: "Day submitted. Report ready for download.",
+    date: today,
+    filename: `daily-report-${today}.html`,
+    html: rendered.html,
+  });
 });
 
 router.get("/tasks/history", requireAuth, async (req, res) => {

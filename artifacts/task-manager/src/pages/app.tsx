@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { getReportMode, submitDayAndDownload } from "@/lib/reportMode";
 import {
   useGetTodayTasks,
   getGetTodayTasksQueryKey,
@@ -542,7 +543,35 @@ export default function AppView() {
     [setPostedForFuture, queryClient, taskList?.submitted],
   );
 
-  const handleSubmitDay = () => {
+  const [downloadPending, setDownloadPending] = useState(false);
+
+  const handleSubmitDay = async () => {
+    const mode = getReportMode();
+
+    if (mode === "download") {
+      // Download mode: hit the dedicated endpoint that marks the day
+      // submitted AND returns the rendered HTML in one call. No email is
+      // sent in this path, so it works even if Resend is misconfigured.
+      setDownloadPending(true);
+      try {
+        const result = await submitDayAndDownload();
+        queryClient.invalidateQueries({
+          queryKey: getGetTodayTasksQueryKey(),
+        });
+        if (result.success) {
+          toast.success(result.message);
+        } else {
+          toast.error(result.message);
+        }
+      } catch (err: any) {
+        toast.error(err?.message || "Failed to download report");
+      } finally {
+        setDownloadPending(false);
+      }
+      return;
+    }
+
+    // Email mode (default): existing flow.
     submitDay.mutate(undefined, {
       onSuccess: (data) => {
         queryClient.invalidateQueries({ queryKey: getGetTodayTasksQueryKey() });
@@ -882,7 +911,7 @@ export default function AppView() {
               <Button
                 size="sm"
                 onClick={handleSubmitDay}
-                disabled={submitDay.isPending}
+                disabled={submitDay.isPending || downloadPending}
                 variant="secondary"
                 className={`gap-1.5 rounded-full px-3 ${
                   allCompleted
@@ -890,7 +919,7 @@ export default function AppView() {
                     : "bg-white/80 border border-[#E2DBC6] text-[#1F1B14] hover:bg-white"
                 }`}
               >
-                {submitDay.isPending ? (
+                {submitDay.isPending || downloadPending ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : (
                   <Send className="w-3.5 h-3.5" />

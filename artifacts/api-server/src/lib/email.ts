@@ -104,11 +104,11 @@ export type SendDailyReportOptions = {
   test?: boolean;
 };
 
-function renderHtml(
+export function renderDailyReportHtml(
   date: string,
   tasks: DailyReportTask[],
   userName: string,
-  options: SendDailyReportOptions,
+  options: SendDailyReportOptions = {},
 ): { html: string; subject: string; counts: { completed: number; total: number } } {
   const postedForFutureTasks = tasks.filter((t) => t.postedForFuture);
   const activeTasks = tasks.filter((t) => !t.postedForFuture);
@@ -319,7 +319,7 @@ export async function sendDailyReport(
   let html: string;
   let subject: string;
   try {
-    const rendered = renderHtml(date, tasks, userName, options);
+    const rendered = renderDailyReportHtml(date, tasks, userName, options);
     html = rendered.html;
     subject = rendered.subject;
   } catch (err: any) {

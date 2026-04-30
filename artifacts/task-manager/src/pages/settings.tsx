@@ -18,7 +18,11 @@ import {
   RefreshCw,
   CheckCircle2,
   AlertCircle,
+  Download,
+  FileOutput,
 } from "lucide-react";
+import { useReportMode, type ReportMode } from "@/lib/reportMode";
+import { cn } from "@/lib/utils";
 import {
   Card,
   CardContent,
@@ -103,6 +107,8 @@ export default function Settings() {
 
   const updateSettings = useUpdateSettings();
   const sendTestEmail = useSendTestEmail();
+
+  const [reportMode, setReportModeValue] = useReportMode();
 
   const [diagnostics, setDiagnostics] = useState<EmailDiagnostics | null>(null);
   const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
@@ -275,6 +281,23 @@ export default function Settings() {
               </p>
             </form>
           </Form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileOutput className="w-5 h-5 text-primary" />
+            Send report
+          </CardTitle>
+          <CardDescription>
+            Choose what happens when you press <b>Submit Day</b>. Email sends
+            the report to the recipients above; Download saves it as an HTML
+            file you can open or print to PDF.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ReportModeSelector value={reportMode} onChange={setReportModeValue} />
         </CardContent>
       </Card>
 
@@ -466,6 +489,81 @@ export default function Settings() {
         </CardContent>
       </Card>
       )}
+    </div>
+  );
+}
+
+function ReportModeSelector({
+  value,
+  onChange,
+}: {
+  value: ReportMode;
+  onChange: (v: ReportMode) => void;
+}) {
+  const options: {
+    value: ReportMode;
+    label: string;
+    description: string;
+    icon: typeof Mail;
+  }[] = [
+    {
+      value: "email",
+      label: "Email",
+      description: "Send to recipients above",
+      icon: Mail,
+    },
+    {
+      value: "download",
+      label: "Download",
+      description: "Save report as HTML file",
+      icon: Download,
+    },
+  ];
+
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Send report mode"
+      className="grid grid-cols-2 gap-3"
+    >
+      {options.map((opt) => {
+        const Icon = opt.icon;
+        const selected = value === opt.value;
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(opt.value)}
+            className={cn(
+              "flex flex-col items-start gap-1 rounded-lg border p-4 text-left transition-colors",
+              "hover:bg-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              selected
+                ? "border-primary bg-primary/5 ring-1 ring-primary"
+                : "border-border bg-card",
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <Icon
+                className={cn(
+                  "w-4 h-4",
+                  selected ? "text-primary" : "text-muted-foreground",
+                )}
+              />
+              <span
+                className={cn(
+                  "font-medium",
+                  selected ? "text-foreground" : "text-foreground/90",
+                )}
+              >
+                {opt.label}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">{opt.description}</p>
+          </button>
+        );
+      })}
     </div>
   );
 }
