@@ -1,0 +1,251 @@
+══════════════════════════════════════════════════════════════════════════════
+  DAILY TASK MANAGER — RENDER DEPLOYMENT GUIDE
+══════════════════════════════════════════════════════════════════════════════
+
+OVERVIEW
+--------
+This app deploys as a Docker container on Render. One service runs both
+the Express API server and serves the built React frontend as static files.
+A managed PostgreSQL database is provisioned automatically via the Blueprint.
+
+Architecture in production:
+  Browser → Render Web Service (Docker) → Express API → PostgreSQL
+
+══════════════════════════════════════════════════════════════════════════════
+STEP 1 — COLLECT YOUR CREDENTIALS BEFORE YOU START
+══════════════════════════════════════════════════════════════════════════════
+
+You need the following values ready before deploying:
+
+  a) CLERK KEYS — from https://dashboard.clerk.com
+     1. Sign in at clerk.com → open your application
+     2. Go to: Configure → API Keys
+     3. Copy these two values:
+          • Secret key       → starts with sk_live_ (or sk_test_ for dev)
+          • Publishable key  → starts with pk_live_ (or pk_test_ for dev)
+
+     You will use these in Steps 4 and 5 below.
+
+  b) GMAIL APP PASSWORD (for email reports)
+     • Gmail address you want to send reports FROM
+     • An App Password (not your regular Gmail password)
+     How to create one:
+       1. Go to myaccount.google.com → Security
+       2. Enable 2-Step Verification if not already enabled
+       3. Go to Security → App Passwords
+       4. Choose "Mail" + "Other (custom name)" → "Daily Task Manager"
+       5. Copy the 16-character password shown (e.g. "abcd efgh ijkl mnop")
+
+  c) SUPER ADMIN EMAIL
+     • The email address that gets admin access (e.g. sujay@vellichormedia.com)
+
+══════════════════════════════════════════════════════════════════════════════
+STEP 2 — CREATE A USER IN CLERK (before deploying)
+══════════════════════════════════════════════════════════════════════════════
+
+Users are managed entirely in the Clerk dashboard — there is no sign-up page
+in the app itself.
+
+  1. Go to https://dashboard.clerk.com → your application
+  2. Click "Users" in the left sidebar
+  3. Click "Create user"
+  4. Enter the email and password for your account
+     (e.g. sujay@vellichormedia.com / your chosen password)
+  5. The admin account is whoever matches SUPER_ADMIN_EMAIL (set in Step 4)
+
+══════════════════════════════════════════════════════════════════════════════
+STEP 3 — PUSH CODE TO GITHUB
+══════════════════════════════════════════════════════════════════════════════
+
+From your Replit terminal (or locally):
+
+  1. Create a new repository on github.com (private or public)
+
+  2. Run the push script:
+       chmod +x push.sh
+       ./push.sh
+
+     On first run it will ask for your GitHub repo URL, e.g.:
+       https://github.com/yourusername/daily-task-manager.git
+
+  3. All future updates:
+       ./push.sh "Your commit message"
+
+══════════════════════════════════════════════════════════════════════════════
+STEP 4 — DEPLOY ON RENDER
+══════════════════════════════════════════════════════════════════════════════
+
+OPTION A — Blueprint (one-click, recommended)
+─────────────────────────────────────────────
+  1. Log in to dashboard.render.com
+  2. Click "New +" → "Blueprint"
+  3. Connect your GitHub account and select your repository
+  4. Render reads render.yaml automatically
+  5. It will create:
+       • A PostgreSQL database  (daily-task-db)
+       • A Web Service          (daily-task-manager) using Docker
+  6. Continue to STEP 5 to set environment variables
+
+OPTION B — Manual Web Service
+──────────────────────────────
+  1. Log in to dashboard.render.com
+  2. Click "New +" → "Web Service"
+  3. Connect your GitHub repository
+  4. Configure:
+       Name:           daily-task-manager
+       Runtime:        Docker
+       Region:         Oregon (or your preference)
+       Branch:         main
+       Health path:    /api/healthz
+       Plan:           Free (or paid for always-on)
+  5. Continue to STEP 5 to set environment variables
+
+══════════════════════════════════════════════════════════════════════════════
+STEP 5 — SET ENVIRONMENT VARIABLES IN RENDER
+══════════════════════════════════════════════════════════════════════════════
+
+In Render → your Web Service → "Environment" tab → "Environment Variables":
+
+  ┌─────────────────────────────┬──────────────────────────────────────────────┐
+  │ Variable                    │ Value                                        │
+  ├─────────────────────────────┼──────────────────────────────────────────────┤
+  │ NODE_ENV                    │ production                                   │
+  │ CLERK_SECRET_KEY            │ sk_live_... (Clerk dashboard → API Keys)     │
+  │ SUPER_ADMIN_EMAIL           │ sujay@vellichormedia.com                     │
+  │ GMAIL_USER                  │ your-gmail@gmail.com                         │
+  │ GMAIL_APP_PASSWORD          │ your 16-char app password                    │
+  │ DATABASE_URL                │ (auto-injected if using Blueprint)           │
+  └─────────────────────────────┴──────────────────────────────────────────────┘
+
+  Note: DATABASE_URL is injected automatically when using the Blueprint.
+  If deploying manually, create a Render PostgreSQL database first, then paste
+  the "External Connection String" as DATABASE_URL.
+
+══════════════════════════════════════════════════════════════════════════════
+STEP 6 — ADD CLERK KEYS AS ENVIRONMENT VARIABLES
+══════════════════════════════════════════════════════════════════════════════
+
+The Clerk publishable key and proxy URL are now loaded at runtime (no Docker
+Build Arguments needed). Add them in Render → Environment → Environment Variables
+alongside the other keys from Step 5:
+
+  ┌─────────────────────────────┬──────────────────────────────────────────────┐
+  │ Variable                    │ Value                                        │
+  ├─────────────────────────────┼──────────────────────────────────────────────┤
+  │ CLERK_PUBLISHABLE_KEY       │ pk_live_... (Clerk dashboard → API Keys)     │
+  │ CLERK_PROXY_URL             │ https://daily-task-manager.onrender.com      │
+  │                             │   /api/__clerk                               │
+  └─────────────────────────────┴──────────────────────────────────────────────┘
+
+  WHERE TO FIND CLERK_PUBLISHABLE_KEY:
+    → https://dashboard.clerk.com → your app → Configure → API Keys
+    → Copy the "Publishable key" (starts with pk_live_ or pk_test_)
+
+  NOTE ON CLERK_PROXY_URL:
+    → Replace "daily-task-manager" with your actual Render service name
+      if you chose a different name during Blueprint setup
+    → The full value must be:
+        https://<your-service-name>.onrender.com/api/__clerk
+
+  ALSO — in Clerk dashboard, register your production domain:
+    → dashboard.clerk.com → your app → Domains
+    → Add:  https://daily-task-manager.onrender.com
+    → This allows Clerk to accept auth requests from your Render domain
+
+══════════════════════════════════════════════════════════════════════════════
+STEP 7 — FIRST DEPLOY
+══════════════════════════════════════════════════════════════════════════════
+
+  1. After setting all variables, click "Manual Deploy" → "Deploy latest commit"
+  2. Watch the build logs — the Docker build takes 3–6 minutes on first run
+  3. The deploy succeeds when you see "Your service is live" in the logs
+  4. Render will run the database migration automatically on startup
+
+  What happens during startup:
+    • node scripts/migrate.mjs  — creates tables, adds any missing columns
+    • node dist/index.mjs       — starts the Express server on port 3000
+
+══════════════════════════════════════════════════════════════════════════════
+STEP 8 — VERIFY THE DEPLOYMENT
+══════════════════════════════════════════════════════════════════════════════
+
+  1. Open https://<your-app>.onrender.com
+     → Should show the Daily Task Manager landing page
+
+  2. Open https://<your-app>.onrender.com/api/healthz
+     → Should return: {"status":"ok"}
+
+  3. Sign in with the credentials you created in the Clerk dashboard (Step 2)
+     → Should redirect to the task list
+
+  4. Create a task and add a note
+     → Refresh — note should persist
+
+  5. Visit /admin
+     → Should show the admin panel (for sujay@vellichormedia.com)
+
+══════════════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING
+══════════════════════════════════════════════════════════════════════════════
+
+Problem: "Application failed to start"
+  → Check Render logs for startup errors
+  → Most common cause: missing DATABASE_URL or CLERK_SECRET_KEY
+
+Problem: "Cannot connect to database"
+  → Verify DATABASE_URL is set correctly
+  → If using Blueprint, it should be auto-injected
+
+Problem: "Clerk: Failed to load Clerk JS" or auth not working
+  → VITE_CLERK_PROXY_URL might point to the wrong URL
+  → Make sure your Render domain is added in Clerk dashboard → Domains
+  → Try clearing VITE_CLERK_PROXY_URL and redeploying to test
+
+Problem: "Invalid publishable key" or "Invalid secret key"
+  → Double-check keys in Clerk dashboard → Configure → API Keys
+  → Make sure you're using keys from the correct Clerk application
+  → Secret key goes in CLERK_SECRET_KEY (runtime env var)
+  → Publishable key goes in VITE_CLERK_PUBLISHABLE_KEY (build argument)
+
+Problem: Email reports not sending
+  → Verify GMAIL_USER and GMAIL_APP_PASSWORD are set
+  → Make sure you're using an App Password, not your regular Gmail password
+  → Check that 2-Step Verification is enabled on the Gmail account
+
+Problem: Admin page not accessible
+  → Verify SUPER_ADMIN_EMAIL matches your login email exactly (case-sensitive)
+  → Restart the service after changing this variable
+
+Problem: Free tier spins down after inactivity
+  → Render's free tier spins down after 15 minutes of no traffic
+  → First request after sleep takes ~30 seconds to respond
+  → Upgrade to a paid plan for always-on service
+
+══════════════════════════════════════════════════════════════════════════════
+REDEPLOYING AFTER CODE CHANGES
+══════════════════════════════════════════════════════════════════════════════
+
+  1. Make changes in Replit
+  2. Push to GitHub:  ./push.sh "description of change"
+  3. Render auto-deploys on push (if auto-deploy is enabled), OR
+     manually trigger: Render Dashboard → Manual Deploy → Deploy latest commit
+  4. Database migrations run automatically on each startup
+
+══════════════════════════════════════════════════════════════════════════════
+ENVIRONMENT VARIABLE QUICK REFERENCE
+══════════════════════════════════════════════════════════════════════════════
+
+All runtime env vars (Render → Environment → Environment Variables):
+  NODE_ENV                = production
+  DATABASE_URL            = postgresql://... (auto from Blueprint)
+  CLERK_SECRET_KEY        = sk_live_...   ← Clerk dashboard → API Keys → Secret key
+  CLERK_PUBLISHABLE_KEY   = pk_live_...   ← Clerk dashboard → API Keys → Publishable key
+  CLERK_PROXY_URL         = https://<your-app>.onrender.com/api/__clerk
+  SUPER_ADMIN_EMAIL       = sujay@vellichormedia.com
+  GMAIL_USER              = your@gmail.com
+  GMAIL_APP_PASSWORD      = xxxx xxxx xxxx xxxx
+  SESSION_SECRET          = (auto-generated by Blueprint)
+
+No Docker Build Arguments required.
+
+══════════════════════════════════════════════════════════════════════════════

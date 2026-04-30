@@ -1,0 +1,632 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: tasks
+    description: Task list operations
+  - name: settings
+    description: User settings operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /tasks/today:
+    get:
+      operationId: getTodayTasks
+      tags: [tasks]
+      summary: Get today's task list
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Today's task list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskList"
+        "401":
+          description: Unauthorized
+    post:
+      operationId: createTodayTasks
+      tags: [tasks]
+      summary: Create or replace today's task list from raw text
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskListBody"
+      responses:
+        "200":
+          description: Created task list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskList"
+        "401":
+          description: Unauthorized
+
+  /tasks/today/add:
+    post:
+      operationId: addTask
+      tags: [tasks]
+      summary: Append one or more tasks to today's list
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskListBody"
+      responses:
+        "200":
+          description: Updated task list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskList"
+        "401":
+          description: Unauthorized
+
+  /tasks/today/delete:
+    delete:
+      operationId: deleteTask
+      tags: [tasks]
+      summary: Remove a single task by ID
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ToggleTaskBody"
+      responses:
+        "200":
+          description: Deletion result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmitResult"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /tasks/today/reset:
+    delete:
+      operationId: resetTodayTasks
+      tags: [tasks]
+      summary: Delete today's task list and all tasks
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Reset result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmitResult"
+        "401":
+          description: Unauthorized
+
+  /tasks/today/completed:
+    delete:
+      operationId: clearCompletedTodayTasks
+      tags: [tasks]
+      summary: Remove every completed task from today's list
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Clear result with count of removed tasks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClearCompletedResult"
+        "401":
+          description: Unauthorized
+        "404":
+          description: No task list for today
+
+  /tasks/today/note:
+    patch:
+      operationId: updateTaskNote
+      tags: [tasks]
+      summary: Update a task's note
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskNoteBody"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "401":
+          description: Unauthorized
+
+  /tasks/today/toggle:
+    patch:
+      operationId: toggleTask
+      tags: [tasks]
+      summary: Toggle a task's completed status
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ToggleTaskBody"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "401":
+          description: Unauthorized
+
+  /tasks/today/text:
+    patch:
+      operationId: updateTaskText
+      tags: [tasks]
+      summary: Update a task's text
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskTextBody"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /tasks/today/posted-for-future:
+    patch:
+      operationId: setTaskPostedForFuture
+      tags: [tasks]
+      summary: Mark or unmark a task as posted for a future date
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPostedForFutureBody"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /tasks/today/test-email:
+    post:
+      operationId: sendTestEmail
+      tags: [tasks]
+      summary: Send a test version of today's report without marking the day submitted
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Email send result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmitResult"
+        "401":
+          description: Unauthorized
+        "502":
+          description: Email transport failure
+
+  /tasks/today/submit:
+    post:
+      operationId: submitDayTasks
+      tags: [tasks]
+      summary: Submit today's tasks and send email report
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Submission result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmitResult"
+        "401":
+          description: Unauthorized
+
+  /tasks/history:
+    get:
+      operationId: getTaskHistory
+      tags: [tasks]
+      summary: Get past task lists grouped by date
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Historical task lists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskHistoryList"
+        "401":
+          description: Unauthorized
+
+  /tasks/history/search:
+    get:
+      operationId: searchTaskHistory
+      tags: [tasks]
+      summary: Search the user's full task history by name or date
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            description: The search query (max 200 chars)
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [name, date]
+            default: name
+      responses:
+        "200":
+          description: Matching past days
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskHistorySearchResult"
+        "400":
+          description: Invalid query
+        "401":
+          description: Unauthorized
+
+  /tasks/history/{date}:
+    get:
+      operationId: getTasksByDate
+      tags: [tasks]
+      summary: Get tasks for a specific date
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            description: Date in YYYY-MM-DD format
+      responses:
+        "200":
+          description: Task list for date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskList"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /settings:
+    get:
+      operationId: getSettings
+      tags: [settings]
+      summary: Get user settings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: User settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
+        "401":
+          description: Unauthorized
+    patch:
+      operationId: updateSettings
+      tags: [settings]
+      summary: Update user settings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSettingsBody"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserSettings"
+        "401":
+          description: Unauthorized
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Task:
+      type: object
+      properties:
+        id:
+          type: integer
+        text:
+          type: string
+        completed:
+          type: boolean
+        note:
+          type: string
+        position:
+          type: integer
+        postedForFuture:
+          type: boolean
+          description: Marks the task as scheduled for a future date — hidden from the active board, included in the daily report, and never carried over.
+        createdAt:
+          type: string
+          description: ISO-8601 timestamp of when the task was created.
+      required:
+        - id
+        - text
+        - completed
+        - note
+        - position
+        - postedForFuture
+        - createdAt
+
+    TaskList:
+      type: object
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        submitted:
+          type: boolean
+        submittedAt:
+          type: string
+          nullable: true
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+      required:
+        - id
+        - date
+        - submitted
+        - submittedAt
+        - tasks
+
+    CreateTaskListBody:
+      type: object
+      properties:
+        rawText:
+          type: string
+          description: Newline-separated task text
+      required:
+        - rawText
+
+    ToggleTaskBody:
+      type: object
+      properties:
+        taskId:
+          type: integer
+      required:
+        - taskId
+
+    UpdateTaskNoteBody:
+      type: object
+      properties:
+        taskId:
+          type: integer
+        note:
+          type: string
+      required:
+        - taskId
+        - note
+
+    UpdateTaskTextBody:
+      type: object
+      properties:
+        taskId:
+          type: integer
+        text:
+          type: string
+      required:
+        - taskId
+        - text
+
+    SetPostedForFutureBody:
+      type: object
+      properties:
+        taskId:
+          type: integer
+        postedForFuture:
+          type: boolean
+      required:
+        - taskId
+        - postedForFuture
+
+    SubmitResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+        - message
+
+    TaskHistoryEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        submitted:
+          type: boolean
+        completedCount:
+          type: integer
+        totalCount:
+          type: integer
+      required:
+        - id
+        - date
+        - submitted
+        - completedCount
+        - totalCount
+
+    TaskHistoryList:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskHistoryEntry"
+      required:
+        - entries
+
+    MatchedTaskSnippet:
+      type: object
+      properties:
+        id:
+          type: integer
+        text:
+          type: string
+        completed:
+          type: boolean
+      required:
+        - id
+        - text
+        - completed
+
+    TaskHistorySearchEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        date:
+          type: string
+        submitted:
+          type: boolean
+        completedCount:
+          type: integer
+        totalCount:
+          type: integer
+        matchedTasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/MatchedTaskSnippet"
+      required:
+        - id
+        - date
+        - submitted
+        - completedCount
+        - totalCount
+        - matchedTasks
+
+    TaskHistorySearchResult:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaskHistorySearchEntry"
+      required:
+        - entries
+
+    ClearCompletedResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        deletedCount:
+          type: integer
+      required:
+        - success
+        - deletedCount
+
+    UserSettings:
+      type: object
+      properties:
+        recipientEmails:
+          type: string
+          description: Comma-separated email addresses
+      required:
+        - recipientEmails
+
+    UpdateSettingsBody:
+      type: object
+      properties:
+        recipientEmails:
+          type: string
+      required:
+        - recipientEmails
