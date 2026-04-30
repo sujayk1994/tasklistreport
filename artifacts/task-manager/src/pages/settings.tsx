@@ -76,6 +76,9 @@ type EmailDiagnostics = {
     gmailUserSet: boolean;
     gmailPassSet: boolean;
     gmailUserMasked: string | null;
+    smtpHost?: string;
+    smtpPort?: number;
+    smtpSecure?: boolean;
   };
   lastAttempt: EmailAttempt | null;
 };
@@ -366,6 +369,13 @@ export default function Settings() {
                         : "(not set)"
                     }
                   />
+                  {diagnostics.env.smtpHost && (
+                    <DiagRow
+                      ok={true}
+                      label="SMTP endpoint"
+                      detail={`${diagnostics.env.smtpHost}:${diagnostics.env.smtpPort} (${diagnostics.env.smtpSecure ? "SSL" : "STARTTLS"})`}
+                    />
+                  )}
                 </ul>
               </div>
 

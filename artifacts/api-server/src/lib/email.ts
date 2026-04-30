@@ -33,12 +33,16 @@ export function getLastEmailAttempt(): EmailAttempt | null {
 }
 
 export function getEmailEnvStatus() {
+  const cfg = getTransportConfig();
   return {
     gmailUserSet: !!process.env.GMAIL_USER,
     gmailPassSet: !!process.env.GMAIL_APP_PASSWORD,
     gmailUserMasked: process.env.GMAIL_USER
       ? maskEmail(process.env.GMAIL_USER)
       : null,
+    smtpHost: cfg.host,
+    smtpPort: cfg.port,
+    smtpSecure: cfg.secure,
   };
 }
 
@@ -53,15 +57,32 @@ function maskEmail(email: string): string {
 // Transport (with timeouts so a stuck SMTP socket can never hang a request)
 // ---------------------------------------------------------------------------
 
+function getTransportConfig() {
+  // Allow overriding host/port via env so we can flip between Gmail's two
+  // SMTP endpoints without a code change. Defaults match nodemailer's
+  // service:"gmail" behaviour (smtp.gmail.com:465 SSL).
+  const host = process.env.SMTP_HOST || "smtp.gmail.com";
+  const port = Number(process.env.SMTP_PORT || 465);
+  // 465 = implicit TLS (secure: true); 587 = STARTTLS (secure: false)
+  const secure = process.env.SMTP_SECURE
+    ? process.env.SMTP_SECURE === "true"
+    : port === 465;
+  return { host, port, secure };
+}
+
 function createTransport(): Transporter | null {
   const gmailUser = process.env.GMAIL_USER;
   const gmailPass = process.env.GMAIL_APP_PASSWORD;
   if (!gmailUser || !gmailPass) return null;
 
+  const { host, port, secure } = getTransportConfig();
+
   return nodemailer.createTransport({
-    service: "gmail",
+    host,
+    port,
+    secure,
     auth: { user: gmailUser, pass: gmailPass },
-    // Hard timeouts — if Gmail is unreachable for any reason the send
+    // Hard timeouts — if SMTP is unreachable for any reason the send
     // fails fast with a clear error instead of holding the HTTP request
     // open until the client gives up.
     connectionTimeout: 15_000,
