@@ -1,4 +1,4 @@
-import nodemailer, { type Transporter } from "nodemailer";
+import { Resend } from "resend";
 import { logger } from "./logger";
 
 // ---------------------------------------------------------------------------
@@ -7,9 +7,9 @@ import { logger } from "./logger";
 //
 // We keep the most recent email-send attempt in module memory so the
 // frontend can pull it back via /api/diagnostics/email and show the user
-// exactly *why* a send failed (auth, recipients, timeout, etc.) without
-// needing access to server logs. This is intentionally process-local and
-// not persisted — it's a temporary diagnostic aid the user asked for.
+// exactly *why* a send failed (auth, recipients, API error, etc.) without
+// needing access to server logs. Process-local, not persisted — this is a
+// temporary diagnostic aid the user asked for.
 // ---------------------------------------------------------------------------
 
 export type EmailAttempt = {
@@ -24,6 +24,7 @@ export type EmailAttempt = {
   errorName?: string;
   errorCode?: string;
   errorMessage?: string;
+  providerMessageId?: string;
 };
 
 let lastAttempt: EmailAttempt | null = null;
@@ -32,67 +33,49 @@ export function getLastEmailAttempt(): EmailAttempt | null {
   return lastAttempt;
 }
 
+const DEFAULT_FROM = "Daily Tasks <onboarding@resend.dev>";
+
+function getFromAddress(): string {
+  // EMAIL_FROM should be a full RFC822 from header, e.g.
+  //   "Daily Tasks <reports@vellichormedia.com>"
+  // or just an address: "reports@vellichormedia.com"
+  // Falls back to Resend's sandbox sender so a missing env var never
+  // bricks the send entirely.
+  const raw = process.env.EMAIL_FROM?.trim();
+  if (!raw) return DEFAULT_FROM;
+  return raw;
+}
+
+function maskApiKey(key: string): string {
+  if (key.length <= 8) return "****";
+  return `${key.slice(0, 4)}…${key.slice(-4)}`;
+}
+
 export function getEmailEnvStatus() {
-  const cfg = getTransportConfig();
+  const apiKey = process.env.RESEND_API_KEY;
   return {
-    gmailUserSet: !!process.env.GMAIL_USER,
-    gmailPassSet: !!process.env.GMAIL_APP_PASSWORD,
-    gmailUserMasked: process.env.GMAIL_USER
-      ? maskEmail(process.env.GMAIL_USER)
-      : null,
-    smtpHost: cfg.host,
-    smtpPort: cfg.port,
-    smtpSecure: cfg.secure,
+    provider: "resend" as const,
+    apiKeySet: !!apiKey,
+    apiKeyMasked: apiKey ? maskApiKey(apiKey) : null,
+    fromAddress: getFromAddress(),
+    fromAddressFromEnv: !!process.env.EMAIL_FROM,
   };
 }
 
-function maskEmail(email: string): string {
-  const [user, domain] = email.split("@");
-  if (!user || !domain) return "***";
-  const head = user.slice(0, 2);
-  return `${head}${"*".repeat(Math.max(1, user.length - 2))}@${domain}`;
-}
-
 // ---------------------------------------------------------------------------
-// Transport (with timeouts so a stuck SMTP socket can never hang a request)
+// Client
 // ---------------------------------------------------------------------------
 
-function getTransportConfig() {
-  // Allow overriding host/port via env so we can flip between Gmail's two
-  // SMTP endpoints without a code change. Defaults match nodemailer's
-  // service:"gmail" behaviour (smtp.gmail.com:465 SSL).
-  const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = Number(process.env.SMTP_PORT || 465);
-  // 465 = implicit TLS (secure: true); 587 = STARTTLS (secure: false)
-  const secure = process.env.SMTP_SECURE
-    ? process.env.SMTP_SECURE === "true"
-    : port === 465;
-  return { host, port, secure };
-}
+let cachedClient: Resend | null = null;
+let cachedClientKey: string | null = null;
 
-function createTransport(): Transporter | null {
-  const gmailUser = process.env.GMAIL_USER;
-  const gmailPass = process.env.GMAIL_APP_PASSWORD;
-  if (!gmailUser || !gmailPass) return null;
-
-  const { host, port, secure } = getTransportConfig();
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user: gmailUser, pass: gmailPass },
-    // Force IPv4 — many container hosts (Render included) advertise IPv6
-    // via DNS but have no working IPv6 route, so without this Node may
-    // pick an AAAA record and fail with ENETUNREACH.
-    family: 4,
-    // Hard timeouts — if SMTP is unreachable for any reason the send
-    // fails fast with a clear error instead of holding the HTTP request
-    // open until the client gives up.
-    connectionTimeout: 15_000,
-    greetingTimeout: 15_000,
-    socketTimeout: 20_000,
-  });
+function getClient(): Resend | null {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return null;
+  if (cachedClient && cachedClientKey === apiKey) return cachedClient;
+  cachedClient = new Resend(apiKey);
+  cachedClientKey = apiKey;
+  return cachedClient;
 }
 
 // ---------------------------------------------------------------------------
@@ -290,7 +273,12 @@ export async function sendDailyReport(
     };
     if (result.success) {
       logger.info(
-        { kind, recipients: recipientsParsed, durationMs: lastAttempt.durationMs },
+        {
+          kind,
+          recipients: recipientsParsed,
+          durationMs: lastAttempt.durationMs,
+          providerMessageId: extra.providerMessageId,
+        },
         "email: sent",
       );
     } else {
@@ -309,14 +297,12 @@ export async function sendDailyReport(
     return result;
   };
 
-  const gmailUser = process.env.GMAIL_USER;
-  const gmailPass = process.env.GMAIL_APP_PASSWORD;
-
-  if (!gmailUser || !gmailPass) {
+  const client = getClient();
+  if (!client) {
     return finish({
       success: false,
       message:
-        "Email is not configured on the server. Set GMAIL_USER and GMAIL_APP_PASSWORD env vars.",
+        "Email is not configured on the server. Set RESEND_API_KEY env var.",
     });
   }
 
@@ -327,14 +313,6 @@ export async function sendDailyReport(
         recipientEmails.trim() === ""
           ? "No recipient emails configured. Add at least one address in Settings."
           : `No valid recipient emails after parsing "${recipientEmails}". Check for typos / commas.`,
-    });
-  }
-
-  const transport = createTransport();
-  if (!transport) {
-    return finish({
-      success: false,
-      message: "Failed to initialise the SMTP transport.",
     });
   }
 
@@ -355,21 +333,39 @@ export async function sendDailyReport(
   }
 
   try {
-    await transport.sendMail({
-      from: `"Daily Tasks" <${gmailUser}>`,
-      to: recipientsParsed.join(", "),
+    const { data, error } = await client.emails.send({
+      from: getFromAddress(),
+      to: recipientsParsed,
       subject,
       html,
     });
-    return finish({
-      success: true,
-      message: `Report sent to ${recipientsParsed.join(", ")}`,
-    });
+
+    if (error) {
+      // Resend SDK returns errors as a structured object instead of throwing.
+      return finish(
+        {
+          success: false,
+          message: `Resend rejected the send: ${error.message ?? "Unknown error"}`,
+        },
+        {
+          errorName: error.name ?? "ResendError",
+          errorMessage: error.message,
+        },
+      );
+    }
+
+    return finish(
+      {
+        success: true,
+        message: `Report sent to ${recipientsParsed.join(", ")}`,
+      },
+      { providerMessageId: data?.id },
+    );
   } catch (err: any) {
     return finish(
       {
         success: false,
-        message: `Email transport rejected the send: ${err?.message ?? "Unknown error"}`,
+        message: `Resend request failed: ${err?.message ?? "Unknown error"}`,
       },
       {
         errorName: err?.name,
@@ -377,13 +373,5 @@ export async function sendDailyReport(
         errorMessage: err?.message,
       },
     );
-  } finally {
-    // nodemailer transports are short-lived per request; release the pool
-    // so we don't accumulate sockets between sends.
-    try {
-      transport.close();
-    } catch {
-      /* ignore */
-    }
   }
 }

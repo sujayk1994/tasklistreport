@@ -73,12 +73,11 @@ type EmailAttempt = {
 type EmailDiagnostics = {
   serverTime: string;
   env: {
-    gmailUserSet: boolean;
-    gmailPassSet: boolean;
-    gmailUserMasked: string | null;
-    smtpHost?: string;
-    smtpPort?: number;
-    smtpSecure?: boolean;
+    provider: string;
+    apiKeySet: boolean;
+    apiKeyMasked: string | null;
+    fromAddress: string;
+    fromAddressFromEnv: boolean;
   };
   lastAttempt: EmailAttempt | null;
 };
@@ -356,26 +355,20 @@ export default function Settings() {
                 <div className="font-semibold mb-1">Server config</div>
                 <ul className="space-y-1">
                   <DiagRow
-                    ok={diagnostics.env.gmailUserSet}
-                    label="GMAIL_USER set"
-                    detail={diagnostics.env.gmailUserMasked ?? "(not set)"}
+                    ok={true}
+                    label="Provider"
+                    detail={diagnostics.env.provider}
                   />
                   <DiagRow
-                    ok={diagnostics.env.gmailPassSet}
-                    label="GMAIL_APP_PASSWORD set"
-                    detail={
-                      diagnostics.env.gmailPassSet
-                        ? "(value hidden)"
-                        : "(not set)"
-                    }
+                    ok={diagnostics.env.apiKeySet}
+                    label="RESEND_API_KEY set"
+                    detail={diagnostics.env.apiKeyMasked ?? "(not set)"}
                   />
-                  {diagnostics.env.smtpHost && (
-                    <DiagRow
-                      ok={true}
-                      label="SMTP endpoint"
-                      detail={`${diagnostics.env.smtpHost}:${diagnostics.env.smtpPort} (${diagnostics.env.smtpSecure ? "SSL" : "STARTTLS"})`}
-                    />
-                  )}
+                  <DiagRow
+                    ok={true}
+                    label="From address"
+                    detail={`${diagnostics.env.fromAddress}${diagnostics.env.fromAddressFromEnv ? "" : " (default — set EMAIL_FROM to override)"}`}
+                  />
                 </ul>
               </div>
 
