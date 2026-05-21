@@ -1,0 +1,74 @@
+modules = ["nodejs-24", "postgresql-16"]
+
+[deployment]
+router = "application"
+deploymentTarget = "autoscale"
+
+[deployment.postBuild]
+args = ["pnpm", "store", "prune"]
+env = { "CI" = "true" }
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "PORT=8080 pnpm --filter @workspace/api-server run dev & PORT=18810 BASE_PATH=/ pnpm --filter @workspace/task-manager run dev"
+waitForPort = 18810
+
+[agent]
+stack = "BEST_EFFORT_FALLBACK"
+expertMode = true
+integrations = ["javascript_log_in_with_replit:2.0.0"]
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
+
+[[ports]]
+localPort = 8080
+externalPort = 8080
+
+[[ports]]
+localPort = 8081
+externalPort = 80
+
+[[ports]]
+localPort = 8082
+externalPort = 3001
+
+[[ports]]
+localPort = 18810
+externalPort = 3000
+
+[[ports]]
+localPort = 18811
+externalPort = 3002
+
+[userenv]
+
+[userenv.shared]
+RECIPIENT_EMAILS = "vishnu@vellichormedia.com,sujay@vellichormedia.com"
+SUPER_ADMIN_EMAIL = "sujay@vellichormedia.com"
+CLERK_SECRET_KEY = "sk_test_DUMMYDUMMYDUMMYDUMMYDUMMYDUMMYDUMMY"
+CLERK_PUBLISHABLE_KEY = "pk_test_ZHVtbXkuY2xlcmsuYWNjb3VudHMuZGV2JA"
+VITE_CLERK_PUBLISHABLE_KEY = "pk_test_ZHVtbXkuY2xlcmsuYWNjb3VudHMuZGV2JA"
+
+[nix]
+channel = "stable-25_05"

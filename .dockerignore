@@ -1,0 +1,16 @@
+.git
+.gitignore
+node_modules
+**/node_modules
+**/dist
+.env
+.env.*
+!.env.example
+*.log
+.local
+replit.md
+attached_assets
+screenshots
+push.sh
+start.sh
+docker-compose.yml
