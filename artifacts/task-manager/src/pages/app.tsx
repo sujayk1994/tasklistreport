@@ -198,23 +198,6 @@ export default function AppView() {
     setNotifiedIds(next);
   }, [notifiedIds]);
 
-  // Scheduler: tick every 60s, fire once per 30-min window after 8 PM IST.
-  useEffect(() => {
-    const tick = () => {
-      if (notifiedIds.size === 0) return;
-      if (!shouldFireNow()) return;
-      const tasks = (taskList?.tasks ?? []) as Array<{ id: number; text: string; completed: boolean }>;
-      const pending = tasks.filter((t) => notifiedIds.has(t.id) && !t.completed);
-      if (pending.length > 0) {
-        fireNotificationsForTasks(pending);
-      }
-    };
-
-    tick(); // run immediately on mount / when notifiedIds changes
-    const id = window.setInterval(tick, 60_000);
-    return () => window.clearInterval(id);
-  }, [notifiedIds, taskList]);
-
   // Board fullscreen — when on, the board covers the whole browser window
   // (sidebar + header are hidden) and we also request native browser
   // fullscreen so even browser chrome goes away. ESC exits.
@@ -290,6 +273,23 @@ export default function AppView() {
   const { data: taskList, isLoading } = useGetTodayTasks({
     query: { queryKey: getGetTodayTasksQueryKey() },
   });
+
+  // Scheduler: tick every 60s, fire once per 30-min window after 8 PM IST.
+  useEffect(() => {
+    const tick = () => {
+      if (notifiedIds.size === 0) return;
+      if (!shouldFireNow()) return;
+      const tasks = (taskList?.tasks ?? []) as Array<{ id: number; text: string; completed: boolean }>;
+      const pending = tasks.filter((t) => notifiedIds.has(t.id) && !t.completed);
+      if (pending.length > 0) {
+        fireNotificationsForTasks(pending);
+      }
+    };
+
+    tick(); // run immediately on mount / when notifiedIds changes
+    const id = window.setInterval(tick, 60_000);
+    return () => window.clearInterval(id);
+  }, [notifiedIds, taskList]);
 
   useEffect(() => {
     if (!taskList?.tasks) return;
