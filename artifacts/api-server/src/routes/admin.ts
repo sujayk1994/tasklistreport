@@ -12,6 +12,7 @@ import {
   parseReminderBodyOnly,
   parsePendingListBodyOnly,
   parseShipmentBodyOnly,
+  parseAdRequestBodyOnly,
 } from "../lib/inbox";
 
 const router = Router();
@@ -335,9 +336,9 @@ router.post("/admin/inbox-rules", requireAuth, requireAdmin, async (req, res) =>
     res.status(400).json({ error: "subjectPattern is required" });
     return;
   }
-  const VALID_TYPES = ["reminder", "pending_list", "shipment"] as const;
+  const VALID_TYPES = ["reminder", "pending_list", "shipment", "ad_request"] as const;
   if (!VALID_TYPES.includes(parserType as any)) {
-    res.status(400).json({ error: "parserType must be reminder, pending_list, or shipment" });
+    res.status(400).json({ error: "parserType must be reminder, pending_list, shipment, or ad_request" });
     return;
   }
 
@@ -353,7 +354,7 @@ router.post("/admin/inbox-rules", requireAuth, requireAdmin, async (req, res) =>
     .values({
       label: (label as string).trim(),
       subjectPattern: (subjectPattern as string).trim(),
-      parserType: parserType as "reminder" | "pending_list" | "shipment",
+      parserType: parserType as "reminder" | "pending_list" | "shipment" | "ad_request",
       taskSuffix: typeof taskSuffix === "string" && taskSuffix.trim() ? taskSuffix.trim() : null,
       enabled: true,
     })
@@ -406,6 +407,7 @@ const DEFAULT_INBOX_RULES = [
   { label: "Reprint Reminder",           subjectPattern: "reprint\\s+reminder",              parserType: "reminder" as const, taskSuffix: "Reprints" },
   { label: "Pending List",               subjectPattern: "pending\\s+list",                  parserType: "pending_list" as const, taskSuffix: null },
   { label: "Shipment Copies Summary",    subjectPattern: "shipment\\s+copies\\s+summary|copies\\s+required", parserType: "shipment" as const, taskSuffix: null },
+  { label: "Ad Design Request",          subjectPattern: "request\\s+to\\s+design\\s+the\\s+ad", parserType: "ad_request" as const, taskSuffix: null },
 ];
 
 router.post("/admin/inbox-rules/seed-defaults", requireAuth, requireAdmin, async (_req, res) => {
@@ -464,6 +466,16 @@ router.post("/admin/inbox-rules/:id/test", requireAuth, requireAdmin, async (req
     tasks = entries.map((e) => `Print: ${e.magazine} - ${e.project} - ${e.copies} copies`);
     if (tasks.length === 0) {
       parseNote = "No entries found. Expected blocks with 'Magazine:', 'Project:', and a number.";
+    }
+  } else if (rule.parserType === "ad_request") {
+    const result = parseAdRequestBodyOnly(body);
+    if (result) {
+      tasks = [result.title];
+      parseNote = result.details
+        ? `Details note (${result.details.length} chars): ${result.details.slice(0, 120)}${result.details.length > 120 ? "…" : ""}`
+        : "Task title extracted. No details found after the title.";
+    } else {
+      parseNote = "No task found. Make sure the body starts with 'Hi name,' followed by the task title on the next line.";
     }
   }
 

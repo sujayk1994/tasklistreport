@@ -153,3 +153,33 @@ export async function appendTasksDeduped(
 
   return toInsert.length;
 }
+
+export async function appendTasksWithNotesDeduped(
+  taskListId: number,
+  tasks: Array<{ text: string; note: string }>,
+): Promise<number> {
+  if (tasks.length === 0) return 0;
+
+  const existing = await db
+    .select()
+    .from(tasksTable)
+    .where(eq(tasksTable.taskListId, taskListId));
+
+  const existingTexts = new Set(existing.map((t: typeof tasksTable.$inferSelect) => t.text));
+  const toInsert = tasks.filter((t) => !existingTexts.has(t.text));
+
+  if (toInsert.length === 0) return 0;
+
+  let nextPosition = existing.length;
+  await db.insert(tasksTable).values(
+    toInsert.map((task) => ({
+      taskListId,
+      text: task.text,
+      note: task.note,
+      completed: false,
+      position: nextPosition++,
+    })),
+  );
+
+  return toInsert.length;
+}

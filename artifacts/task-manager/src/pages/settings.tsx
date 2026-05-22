@@ -714,7 +714,7 @@ type InboxRule = {
   id: number;
   label: string;
   subjectPattern: string;
-  parserType: "reminder" | "pending_list" | "shipment";
+  parserType: "reminder" | "pending_list" | "shipment" | "ad_request";
   taskSuffix: string | null;
   enabled: boolean;
 };
@@ -723,6 +723,7 @@ const PARSER_LABELS: Record<InboxRule["parserType"], string> = {
   reminder: "Reminder (sent today: … Best regards)",
   pending_list: "Pending list (numbered lines)",
   shipment: "Shipment copies summary",
+  ad_request: "Ad request (Hi name, → task + details note)",
 };
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -1105,6 +1106,8 @@ function InboxRulesCard() {
                         ? "sent today:\nBrand Name - Project Title\n  - Sub item\nBest regards,"
                         : rule.parserType === "pending_list"
                         ? "1. First task\n2. Second task\n--\nSignature"
+                        : rule.parserType === "ad_request"
+                        ? "Hi Sujay,\n\nPlease design a full page ad for the below company.\n\nCompany Name\n4115 Some Street\nCity, State 00000"
                         : "Magazine: Vogue\nProject: Spring Issue\n500"
                     }
                     value={testBody}

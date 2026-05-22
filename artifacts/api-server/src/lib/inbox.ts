@@ -14,6 +14,7 @@ import { logger } from "./logger";
 import {
   ensureTodayList,
   appendTasksDeduped,
+  appendTasksWithNotesDeduped,
   getLocalDateString,
 } from "./carryover";
 
@@ -157,6 +158,63 @@ export type ShipmentEntry = {
  * Multiple entries can appear in a single email.
  */
 /**
+ * Parses an "Ad Request" email body.
+ * Skips the opening "Hi [name]," greeting, then treats the very next
+ * non-empty line as the task title. Everything after that (trimmed of
+ * trailing whitespace/empty lines) becomes the task note / details.
+ *
+ * Example body:
+ *   Hi Sujay,
+ *
+ *   Please design a full page ad for the below company.
+ *
+ *   Construction Business Outlook
+ *   …
+ *
+ * Returns { title, details } or null if no title could be extracted.
+ */
+export function parseAdRequestBodyOnly(
+  body: string,
+): { title: string; details: string } | null {
+  const lines = body.replace(/\u00a0/g, " ").split(/\r?\n/);
+
+  let pastGreeting = false;
+  let title = "";
+  const detailLines: string[] = [];
+
+  for (const raw of lines) {
+    const line = raw.trim();
+
+    if (!pastGreeting) {
+      // Skip leading blank lines and the "Hi …," greeting
+      if (!line) continue;
+      if (/^hi\b/i.test(line)) { pastGreeting = true; continue; }
+      // No greeting found — treat first non-empty line as title directly
+      pastGreeting = true;
+      title = line;
+      continue;
+    }
+
+    if (!title) {
+      if (!line) continue; // skip blank lines between greeting and title
+      title = line;
+      continue;
+    }
+
+    detailLines.push(raw);
+  }
+
+  if (!title) return null;
+
+  // Trim trailing blank lines from details
+  while (detailLines.length > 0 && !detailLines[detailLines.length - 1].trim()) {
+    detailLines.pop();
+  }
+
+  return { title, details: detailLines.join("\n").trim() };
+}
+
+/**
  * Body-only shipment parser. Exported for DB-driven rules.
  */
 export function parseShipmentBodyOnly(body: string): ShipmentEntry[] | null {
@@ -257,6 +315,34 @@ async function ingestTasksForAllUsers(
         logger.info(
           { userId, inserted, total: tasks.length, date },
           "inbox: ingested tasks",
+        );
+      }
+    } catch (err) {
+      logger.error({ err, userId }, "inbox: failed to ingest for user");
+    }
+  }
+}
+
+async function ingestTasksWithNotesForAllUsers(
+  tasks: Array<{ text: string; note: string }>,
+  date: string = getLocalDateString(),
+): Promise<void> {
+  if (tasks.length === 0) return;
+
+  const userIds = await listAllUserIds();
+  if (userIds.length === 0) {
+    logger.info("inbox: no users yet — skipping ingestion");
+    return;
+  }
+
+  for (const userId of userIds) {
+    try {
+      const list = await ensureTodayList(userId, date);
+      const inserted = await appendTasksWithNotesDeduped(list.id, tasks);
+      if (inserted > 0) {
+        logger.info(
+          { userId, inserted, total: tasks.length, date },
+          "inbox: ingested tasks with notes",
         );
       }
     } catch (err) {
@@ -531,6 +617,13 @@ async function processMessageWithDbRules(
       if (entries && entries.length > 0) {
         logger.info({ subject, rule: rule.label, count: entries.length }, "inbox: DB rule matched (shipment)");
         await processShipmentEmail(entries);
+        handled = true;
+      }
+    } else if (rule.parserType === "ad_request") {
+      const result = parseAdRequestBodyOnly(body);
+      if (result) {
+        logger.info({ subject, rule: rule.label, title: result.title }, "inbox: DB rule matched (ad_request)");
+        await ingestTasksWithNotesForAllUsers([{ text: result.title, note: result.details }]);
         handled = true;
       }
     }
