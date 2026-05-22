@@ -12,5 +12,9 @@ export interface TaskList {
   date: string;
   submitted: boolean;
   submittedAt: string | null;
+  /** True if the user loaded the app today (signals a working day). Auto-submit at 23:59 only fires when this is true. */
+  checkedIn: boolean;
+  /** ISO-8601 timestamp of when the user first loaded the app today. */
+  checkedInAt: string | null;
   tasks: Task[];
 }

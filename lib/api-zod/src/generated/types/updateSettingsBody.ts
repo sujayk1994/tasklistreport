@@ -7,5 +7,8 @@
  */
 
 export interface UpdateSettingsBody {
-  recipientEmails: string;
+  recipientEmails?: string;
+  autoCheckIn?: boolean;
+  autoSubmit?: boolean;
+  workDays?: string;
 }

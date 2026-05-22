@@ -7,10 +7,10 @@ import {
   getGetSettingsQueryKey,
   useUpdateSettings,
   useSendTestEmail,
-  useSetCheckedIn,
   getGetTodayTasksQueryKey,
   useGetTodayTasks,
 } from "@workspace/api-client-react";
+import { useMutation } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -139,7 +139,18 @@ export default function Settings() {
 
   const updateSettings = useUpdateSettings();
   const sendTestEmail = useSendTestEmail();
-  const setCheckedInMutation = useSetCheckedIn();
+  const setCheckedInMutation = useMutation({
+    mutationFn: async ({ data }: { data: { checkedIn: boolean } }) => {
+      const res = await fetch("/api/tasks/today/check-in", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    },
+  });
 
   const [reportMode, setReportModeValue] = useReportMode();
 

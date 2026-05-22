@@ -128,6 +128,7 @@ export async function ensureTodayList(
 export async function appendTasksDeduped(
   taskListId: number,
   texts: string[],
+  source: string = "user",
 ): Promise<number> {
   if (texts.length === 0) return 0;
 
@@ -147,6 +148,7 @@ export async function appendTasksDeduped(
       taskListId,
       text,
       completed: false,
+      source,
       position: nextPosition++,
     })),
   );
@@ -156,7 +158,8 @@ export async function appendTasksDeduped(
 
 export async function appendTasksWithNotesDeduped(
   taskListId: number,
-  tasks: Array<{ text: string; note: string }>,
+  tasks: Array<{ text: string; note?: string | null }>,
+  source: string = "user",
 ): Promise<number> {
   if (tasks.length === 0) return 0;
 
@@ -175,8 +178,9 @@ export async function appendTasksWithNotesDeduped(
     toInsert.map((task) => ({
       taskListId,
       text: task.text,
-      note: task.note,
+      note: task.note ?? "",
       completed: false,
+      source,
       position: nextPosition++,
     })),
   );

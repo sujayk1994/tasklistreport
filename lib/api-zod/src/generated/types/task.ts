@@ -16,4 +16,6 @@ export interface Task {
   postedForFuture: boolean;
   /** ISO-8601 timestamp of when the task was created. */
   createdAt: string;
+  /** 'inbox' for email-created tasks, 'user' for manually created ones. */
+  source: string;
 }

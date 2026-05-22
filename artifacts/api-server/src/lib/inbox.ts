@@ -392,7 +392,7 @@ async function ingestTasksForAllUsers(
   for (const userId of userIds) {
     try {
       const list = await ensureTodayList(userId, date);
-      const inserted = await appendTasksDeduped(list.id, tasks);
+      const inserted = await appendTasksDeduped(list.id, tasks, "inbox");
       if (inserted > 0) {
         logger.info(
           { userId, inserted, total: tasks.length, date },
@@ -420,7 +420,7 @@ async function ingestTasksWithNotesForAllUsers(
   for (const userId of userIds) {
     try {
       const list = await ensureTodayList(userId, date);
-      const inserted = await appendTasksWithNotesDeduped(list.id, tasks);
+      const inserted = await appendTasksWithNotesDeduped(list.id, tasks, "inbox");
       if (inserted > 0) {
         logger.info(
           { userId, inserted, total: tasks.length, date },

@@ -19,6 +19,8 @@ export interface Task {
   postedForFuture: boolean;
   /** ISO-8601 timestamp of when the task was created. */
   createdAt: string;
+  /** 'inbox' for email-created tasks, 'user' for manually created ones. */
+  source: string;
 }
 
 export interface TaskList {
@@ -101,11 +103,11 @@ export interface ClearCompletedResult {
 export interface UserSettings {
   /** Comma-separated email addresses */
   recipientEmails: string;
-  /** When true, loading the app automatically marks you as checked in for the day. */
+  /** When true, loading the app automatically marks you as checked in for the day. Disable on holidays so auto-submit does not fire. */
   autoCheckIn: boolean;
-  /** When true, the server auto-submits at 23:59 for any day you checked in. */
+  /** When true, the server auto-submits at 23:59 for any day you checked in. Disable to always submit manually. */
   autoSubmit: boolean;
-  /** Comma-separated JS day numbers (0=Sun…6=Sat) that count as work days. Default "1,2,3,4,5" = Mon–Fri. */
+  /** Comma-separated JS day numbers (0=Sun … 6=Sat) that count as work days. Default is "1,2,3,4,5" (Mon–Fri). Auto check-in and auto-submit are skipped on non-work days. */
   workDays: string;
 }
 

@@ -67,6 +67,7 @@ import {
   shouldFireNow,
   fireNotificationsForTasks,
 } from "@/lib/taskNotifications";
+import { alertNewInboxTasks, initInboxAlertBaseline } from "@/lib/inboxTaskAlert";
 import { HighlightedText } from "@/lib/highlight";
 import { BoardViewSafe, isPriorityTitle, daysSinceCreated } from "./board-view";
 
@@ -271,8 +272,24 @@ export default function AppView() {
   }, [boardFullscreen]);
 
   const { data: taskList, isLoading } = useGetTodayTasks({
-    query: { queryKey: getGetTodayTasksQueryKey() },
+    query: {
+      queryKey: getGetTodayTasksQueryKey(),
+      refetchInterval: 60_000,
+      refetchIntervalInBackground: true,
+    },
   });
+
+  const inboxAlertInitialized = useRef(false);
+  useEffect(() => {
+    if (!taskList?.tasks) return;
+    const tasks = taskList.tasks as Array<{ id: number; text: string; source: string }>;
+    if (!inboxAlertInitialized.current) {
+      inboxAlertInitialized.current = true;
+      initInboxAlertBaseline(tasks);
+      return;
+    }
+    alertNewInboxTasks(tasks);
+  }, [taskList]);
 
   // Scheduler: tick every 60s, fire once per 30-min window after 8 PM IST.
   useEffect(() => {

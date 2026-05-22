@@ -22,6 +22,17 @@ export const GetTodayTasksResponse = zod.object({
   date: zod.string(),
   submitted: zod.boolean(),
   submittedAt: zod.string().nullable(),
+  checkedIn: zod
+    .boolean()
+    .describe(
+      "True if the user loaded the app today (signals a working day). Auto-submit at 23:59 only fires when this is true.",
+    ),
+  checkedInAt: zod
+    .string()
+    .nullable()
+    .describe(
+      "ISO-8601 timestamp of when the user first loaded the app today.",
+    ),
   tasks: zod.array(
     zod.object({
       id: zod.number(),
@@ -37,6 +48,11 @@ export const GetTodayTasksResponse = zod.object({
       createdAt: zod
         .string()
         .describe("ISO-8601 timestamp of when the task was created."),
+      source: zod
+        .string()
+        .describe(
+          "'inbox' for email-created tasks, 'user' for manually created ones.",
+        ),
     }),
   ),
 });
@@ -53,6 +69,17 @@ export const CreateTodayTasksResponse = zod.object({
   date: zod.string(),
   submitted: zod.boolean(),
   submittedAt: zod.string().nullable(),
+  checkedIn: zod
+    .boolean()
+    .describe(
+      "True if the user loaded the app today (signals a working day). Auto-submit at 23:59 only fires when this is true.",
+    ),
+  checkedInAt: zod
+    .string()
+    .nullable()
+    .describe(
+      "ISO-8601 timestamp of when the user first loaded the app today.",
+    ),
   tasks: zod.array(
     zod.object({
       id: zod.number(),
@@ -68,6 +95,11 @@ export const CreateTodayTasksResponse = zod.object({
       createdAt: zod
         .string()
         .describe("ISO-8601 timestamp of when the task was created."),
+      source: zod
+        .string()
+        .describe(
+          "'inbox' for email-created tasks, 'user' for manually created ones.",
+        ),
     }),
   ),
 });
@@ -84,6 +116,17 @@ export const AddTaskResponse = zod.object({
   date: zod.string(),
   submitted: zod.boolean(),
   submittedAt: zod.string().nullable(),
+  checkedIn: zod
+    .boolean()
+    .describe(
+      "True if the user loaded the app today (signals a working day). Auto-submit at 23:59 only fires when this is true.",
+    ),
+  checkedInAt: zod
+    .string()
+    .nullable()
+    .describe(
+      "ISO-8601 timestamp of when the user first loaded the app today.",
+    ),
   tasks: zod.array(
     zod.object({
       id: zod.number(),
@@ -99,6 +142,11 @@ export const AddTaskResponse = zod.object({
       createdAt: zod
         .string()
         .describe("ISO-8601 timestamp of when the task was created."),
+      source: zod
+        .string()
+        .describe(
+          "'inbox' for email-created tasks, 'user' for manually created ones.",
+        ),
     }),
   ),
 });
@@ -153,6 +201,11 @@ export const UpdateTaskNoteResponse = zod.object({
   createdAt: zod
     .string()
     .describe("ISO-8601 timestamp of when the task was created."),
+  source: zod
+    .string()
+    .describe(
+      "'inbox' for email-created tasks, 'user' for manually created ones.",
+    ),
 });
 
 /**
@@ -176,6 +229,11 @@ export const ToggleTaskResponse = zod.object({
   createdAt: zod
     .string()
     .describe("ISO-8601 timestamp of when the task was created."),
+  source: zod
+    .string()
+    .describe(
+      "'inbox' for email-created tasks, 'user' for manually created ones.",
+    ),
 });
 
 /**
@@ -200,6 +258,11 @@ export const UpdateTaskTextResponse = zod.object({
   createdAt: zod
     .string()
     .describe("ISO-8601 timestamp of when the task was created."),
+  source: zod
+    .string()
+    .describe(
+      "'inbox' for email-created tasks, 'user' for manually created ones.",
+    ),
 });
 
 /**
@@ -224,6 +287,11 @@ export const SetTaskPostedForFutureResponse = zod.object({
   createdAt: zod
     .string()
     .describe("ISO-8601 timestamp of when the task was created."),
+  source: zod
+    .string()
+    .describe(
+      "'inbox' for email-created tasks, 'user' for manually created ones.",
+    ),
 });
 
 /**
@@ -298,6 +366,17 @@ export const GetTasksByDateResponse = zod.object({
   date: zod.string(),
   submitted: zod.boolean(),
   submittedAt: zod.string().nullable(),
+  checkedIn: zod
+    .boolean()
+    .describe(
+      "True if the user loaded the app today (signals a working day). Auto-submit at 23:59 only fires when this is true.",
+    ),
+  checkedInAt: zod
+    .string()
+    .nullable()
+    .describe(
+      "ISO-8601 timestamp of when the user first loaded the app today.",
+    ),
   tasks: zod.array(
     zod.object({
       id: zod.number(),
@@ -313,6 +392,11 @@ export const GetTasksByDateResponse = zod.object({
       createdAt: zod
         .string()
         .describe("ISO-8601 timestamp of when the task was created."),
+      source: zod
+        .string()
+        .describe(
+          "'inbox' for email-created tasks, 'user' for manually created ones.",
+        ),
     }),
   ),
 });
@@ -322,15 +406,48 @@ export const GetTasksByDateResponse = zod.object({
  */
 export const GetSettingsResponse = zod.object({
   recipientEmails: zod.string().describe("Comma-separated email addresses"),
+  autoCheckIn: zod
+    .boolean()
+    .describe(
+      "When true, loading the app automatically marks you as checked in for the day. Disable on holidays so auto-submit does not fire.",
+    ),
+  autoSubmit: zod
+    .boolean()
+    .describe(
+      "When true, the server auto-submits at 23:59 for any day you checked in. Disable to always submit manually.",
+    ),
+  workDays: zod
+    .string()
+    .describe(
+      'Comma-separated JS day numbers (0=Sun … 6=Sat) that count as work days. Default is \"1,2,3,4,5\" (Mon–Fri). Auto check-in and auto-submit are skipped on non-work days.',
+    ),
 });
 
 /**
  * @summary Update user settings
  */
 export const UpdateSettingsBody = zod.object({
-  recipientEmails: zod.string(),
+  recipientEmails: zod.string().optional(),
+  autoCheckIn: zod.boolean().optional(),
+  autoSubmit: zod.boolean().optional(),
+  workDays: zod.string().optional(),
 });
 
 export const UpdateSettingsResponse = zod.object({
   recipientEmails: zod.string().describe("Comma-separated email addresses"),
+  autoCheckIn: zod
+    .boolean()
+    .describe(
+      "When true, loading the app automatically marks you as checked in for the day. Disable on holidays so auto-submit does not fire.",
+    ),
+  autoSubmit: zod
+    .boolean()
+    .describe(
+      "When true, the server auto-submits at 23:59 for any day you checked in. Disable to always submit manually.",
+    ),
+  workDays: zod
+    .string()
+    .describe(
+      'Comma-separated JS day numbers (0=Sun … 6=Sat) that count as work days. Default is \"1,2,3,4,5\" (Mon–Fri). Auto check-in and auto-submit are skipped on non-work days.',
+    ),
 });

@@ -12,6 +12,7 @@ export * from "./healthStatus";
 export * from "./matchedTaskSnippet";
 export * from "./searchTaskHistoryMode";
 export * from "./searchTaskHistoryParams";
+export * from "./setCheckedInBody";
 export * from "./setPostedForFutureBody";
 export * from "./submitResult";
 export * from "./task";

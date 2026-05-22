@@ -21,7 +21,6 @@ import type {
   CreateTaskListBody,
   HealthStatus,
   SearchTaskHistoryParams,
-  SetCheckedInBody,
   SetPostedForFutureBody,
   SubmitResult,
   Task,
@@ -1539,93 +1538,4 @@ export const useUpdateSettings = <
   TContext
 > => {
   return useMutation(getUpdateSettingsMutationOptions(options));
-};
-
-// ---------------------------------------------------------------------------
-// Set today's check-in status — PATCH /api/tasks/today/checkin
-// ---------------------------------------------------------------------------
-
-export const getSetCheckedInUrl = () => {
-  return `/api/tasks/today/checkin`;
-};
-
-export const setCheckedIn = async (
-  setCheckedInBody: SetCheckedInBody,
-  options?: RequestInit,
-): Promise<{ checkedIn: boolean; checkedInAt: string | null }> => {
-  return customFetch<{ checkedIn: boolean; checkedInAt: string | null }>(
-    getSetCheckedInUrl(),
-    {
-      ...options,
-      method: "PATCH",
-      headers: { "Content-Type": "application/json", ...options?.headers },
-      body: JSON.stringify(setCheckedInBody),
-    },
-  );
-};
-
-export const getSetCheckedInMutationOptions = <
-  TError = ErrorType<void>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setCheckedIn>>,
-    TError,
-    { data: BodyType<SetCheckedInBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationOptions<
-  Awaited<ReturnType<typeof setCheckedIn>>,
-  TError,
-  { data: BodyType<SetCheckedInBody> },
-  TContext
-> => {
-  const mutationKey = ["setCheckedIn"];
-  const { mutation: mutationOptions, request: requestOptions } = options
-    ? options.mutation &&
-      "mutationKey" in options.mutation &&
-      options.mutation.mutationKey
-      ? options
-      : { ...options, mutation: { ...options.mutation, mutationKey } }
-    : { mutation: { mutationKey }, request: undefined };
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof setCheckedIn>>,
-    { data: BodyType<SetCheckedInBody> }
-  > = (props) => {
-    const { data } = props ?? {};
-    return setCheckedIn(data, requestOptions);
-  };
-
-  return { mutationFn, ...mutationOptions };
-};
-
-export type SetCheckedInMutationResult = NonNullable<
-  Awaited<ReturnType<typeof setCheckedIn>>
->;
-export type SetCheckedInMutationBody = BodyType<SetCheckedInBody>;
-export type SetCheckedInMutationError = ErrorType<void>;
-
-/**
- * @summary Set today's check-in status
- */
-export const useSetCheckedIn = <
-  TError = ErrorType<void>,
-  TContext = unknown,
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof setCheckedIn>>,
-    TError,
-    { data: BodyType<SetCheckedInBody> },
-    TContext
-  >;
-  request?: SecondParameter<typeof customFetch>;
-}): UseMutationResult<
-  Awaited<ReturnType<typeof setCheckedIn>>,
-  TError,
-  { data: BodyType<SetCheckedInBody> },
-  TContext
-> => {
-  return useMutation(getSetCheckedInMutationOptions(options));
 };

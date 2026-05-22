@@ -29,6 +29,7 @@ function serializeTask(t: DbTask) {
     position: t.position,
     postedForFuture: t.postedForFuture,
     remindDate: t.remindDate ?? null,
+    source: t.source ?? "user",
     createdAt: t.createdAt.toISOString(),
   };
 }
