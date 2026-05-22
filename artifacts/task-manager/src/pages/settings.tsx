@@ -34,7 +34,14 @@ import {
   FlaskConical,
   ChevronDown,
   ChevronUp,
+  HelpCircle,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useReportMode, type ReportMode } from "@/lib/reportMode";
 import { cn } from "@/lib/utils";
 import {
@@ -780,6 +787,8 @@ function InboxRulesCard() {
   const [editSuffix, setEditSuffix] = useState("");
   const [editSaving, setEditSaving] = useState(false);
 
+  const [helpOpen, setHelpOpen] = useState(false);
+
   const [testingId, setTestingId] = useState<number | null>(null);
   const [testBody, setTestBody] = useState("");
   const [testSubject, setTestSubject] = useState("");
@@ -923,6 +932,15 @@ function InboxRulesCard() {
             <Button
               size="sm"
               variant="ghost"
+              className="text-muted-foreground hover:text-foreground px-2"
+              title="Parser type help guide"
+              onClick={() => setHelpOpen(true)}
+            >
+              <HelpCircle className="w-4 h-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
               onClick={handleSeedDefaults}
               disabled={seeding}
               title="Pre-populate with the 4 built-in default rules"
@@ -941,6 +959,138 @@ function InboxRulesCard() {
               Add rule
             </Button>
           </div>
+
+          {/* Parser type help dialog */}
+          <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+            <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <HelpCircle className="w-5 h-5 text-primary" />
+                  Inbox Rule — Parser Type Guide
+                </DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground -mt-1 mb-1">
+                Each inbox rule watches for a subject line pattern (regex) and then parses the email body using the parser type you choose. Pick the type that matches how the sender structures their emails.
+              </p>
+              <div className="space-y-5 text-sm">
+
+                {/* subject_as_task */}
+                <div className="rounded-lg border bg-card p-4 space-y-2">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <span className="inline-flex items-center rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300 px-2 py-0.5 text-xs font-medium">Subject as task</span>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">The email subject line becomes the task title. The entire body (trimmed) is saved as the task note/details. The simplest pattern — just email yourself a task name.</p>
+                  <div className="rounded-md bg-muted/50 p-3 font-mono text-xs space-y-1 leading-relaxed">
+                    <div className="text-muted-foreground">Subject:</div>
+                    <div>Review Q3 ad creative for Vogue</div>
+                    <div className="text-muted-foreground mt-2">Body:</div>
+                    <div>Due Friday. Check colours and bleed area.</div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">→ Creates task <strong>"Review Q3 ad creative for Vogue"</strong> with note <em>"Due Friday. Check colours and bleed area."</em></p>
+                </div>
+
+                {/* bullet_list */}
+                <div className="rounded-lg border bg-card p-4 space-y-2">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 px-2 py-0.5 text-xs font-medium">Bullet list</span>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">Every line that starts with <code className="bg-muted rounded px-1">-</code>, <code className="bg-muted rounded px-1">*</code>, <code className="bg-muted rounded px-1">•</code>, or <code className="bg-muted rounded px-1">–</code> followed by a space becomes a separate task. Other lines (greetings, signatures) are ignored.</p>
+                  <div className="rounded-md bg-muted/50 p-3 font-mono text-xs space-y-1 leading-relaxed">
+                    <div>Hi team,</div>
+                    <div className="mt-1">Please handle the following:</div>
+                    <div>- Update logo on homepage</div>
+                    <div>- Fix broken link in footer</div>
+                    <div>• Send invoice to client</div>
+                    <div className="mt-1">Thanks</div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">→ Creates 3 tasks: <em>Update logo on homepage</em>, <em>Fix broken link in footer</em>, <em>Send invoice to client</em></p>
+                </div>
+
+                {/* plain_lines */}
+                <div className="rounded-lg border bg-card p-4 space-y-2">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 px-2 py-0.5 text-xs font-medium">Plain lines</span>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">Every non-empty line becomes a task. Common greeting words (<em>Hi, Hello, Thanks, Regards, Best, Cheers</em>) and separator lines (<code className="bg-muted rounded px-1">--</code>) are automatically skipped.</p>
+                  <div className="rounded-md bg-muted/50 p-3 font-mono text-xs space-y-1 leading-relaxed">
+                    <div>Hi Sujay,</div>
+                    <div className="mt-1">Order new paper stock</div>
+                    <div>Call printer about delay</div>
+                    <div>Update production schedule</div>
+                    <div className="mt-1">Thanks</div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">→ Creates 3 tasks: <em>Order new paper stock</em>, <em>Call printer about delay</em>, <em>Update production schedule</em></p>
+                </div>
+
+                {/* ad_request */}
+                <div className="rounded-lg border bg-card p-4 space-y-2">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 px-2 py-0.5 text-xs font-medium">Ad request</span>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">Skips the opening <em>"Hi name,"</em> greeting and the first body line, then uses the next non-empty line as the task title. Everything after that is saved as the task note/details.</p>
+                  <div className="rounded-md bg-muted/50 p-3 font-mono text-xs space-y-1 leading-relaxed">
+                    <div>Hi Vishnu,</div>
+                    <div className="mt-1">Please design a full page ad for the below company.</div>
+                    <div className="mt-1">Acme Corp</div>
+                    <div>123 Main St, New York</div>
+                    <div>Full bleed, print-ready PDF by Friday</div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">→ Task: <strong>"Acme Corp"</strong> · Note: <em>"123 Main St… print-ready PDF by Friday"</em></p>
+                </div>
+
+                {/* reminder */}
+                <div className="rounded-lg border bg-card p-4 space-y-2">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <span className="inline-flex items-center rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300 px-2 py-0.5 text-xs font-medium">Reminder</span>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">Looks for a <code className="bg-muted rounded px-1">sent today:</code> marker and extracts brand/project lines up to <code className="bg-muted rounded px-1">Best Regards</code>. Sub-bullets (<code className="bg-muted rounded px-1">  - item</code>) inherit the parent brand name. An optional <strong>Task suffix</strong> (e.g. <em>- twitter marketing</em>) is appended to every task.</p>
+                  <div className="rounded-md bg-muted/50 p-3 font-mono text-xs space-y-1 leading-relaxed">
+                    <div>sent today:</div>
+                    <div>Brand Name - Project Title</div>
+                    <div>  - Variant A</div>
+                    <div>  - Variant B</div>
+                    <div>Best Regards,</div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">→ Creates: <em>Brand Name - Project Title</em>, <em>Brand Name - Variant A</em>, <em>Brand Name - Variant B</em></p>
+                </div>
+
+                {/* pending_list */}
+                <div className="rounded-lg border bg-card p-4 space-y-2">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <span className="inline-flex items-center rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 px-2 py-0.5 text-xs font-medium">Pending list</span>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">Parses numbered lines (<code className="bg-muted rounded px-1">1. Task name</code>) from the email body. Stops at separator lines like <code className="bg-muted rounded px-1">--</code>. An optional Task suffix is appended to each task.</p>
+                  <div className="rounded-md bg-muted/50 p-3 font-mono text-xs space-y-1 leading-relaxed">
+                    <div>Pending items for today:</div>
+                    <div>1. Follow up with printer</div>
+                    <div>2. Send revised layout to client</div>
+                    <div>3. Update delivery schedule</div>
+                    <div>--</div>
+                    <div>Regards, Sujay</div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">→ Creates 3 tasks from the numbered lines</p>
+                </div>
+
+                {/* shipment */}
+                <div className="rounded-lg border bg-card p-4 space-y-2">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <span className="inline-flex items-center rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 px-2 py-0.5 text-xs font-medium">Shipment copies</span>
+                  </div>
+                  <p className="text-muted-foreground leading-relaxed">Parses structured <code className="bg-muted rounded px-1">Magazine:</code> / <code className="bg-muted rounded px-1">Project:</code> / copies blocks. Each block becomes a task like <em>"Print: Vogue - Spring Issue - 498 copies"</em> with a computed shipment date.</p>
+                  <div className="rounded-md bg-muted/50 p-3 font-mono text-xs space-y-1 leading-relaxed">
+                    <div>Magazine: Vogue</div>
+                    <div>Project: Spring Cover Story</div>
+                    <div>500</div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">→ Task: <em>"Print: Vogue - Spring Cover Story - 498 copies"</em> with shipment date 3 days out</p>
+                </div>
+
+                <div className="rounded-lg border border-dashed bg-muted/20 p-3 text-xs text-muted-foreground">
+                  <strong>Tip:</strong> Use the <FlaskConical className="inline w-3 h-3 mx-0.5" /> <strong>Test</strong> button on any rule to paste a sample email body and instantly preview which tasks would be created — without sending anything.
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
