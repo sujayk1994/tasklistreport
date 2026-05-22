@@ -13,6 +13,9 @@ import {
   parsePendingListBodyOnly,
   parseShipmentBodyOnly,
   parseAdRequestBodyOnly,
+  parseSubjectAsTask,
+  parseBulletListBodyOnly,
+  parsePlainLinesBodyOnly,
 } from "../lib/inbox";
 
 const router = Router();
@@ -336,9 +339,9 @@ router.post("/admin/inbox-rules", requireAuth, requireAdmin, async (req, res) =>
     res.status(400).json({ error: "subjectPattern is required" });
     return;
   }
-  const VALID_TYPES = ["reminder", "pending_list", "shipment", "ad_request"] as const;
+  const VALID_TYPES = ["reminder", "pending_list", "shipment", "ad_request", "subject_as_task", "bullet_list", "plain_lines"] as const;
   if (!VALID_TYPES.includes(parserType as any)) {
-    res.status(400).json({ error: "parserType must be reminder, pending_list, shipment, or ad_request" });
+    res.status(400).json({ error: "parserType must be one of: reminder, pending_list, shipment, ad_request, subject_as_task, bullet_list, plain_lines" });
     return;
   }
 
@@ -354,7 +357,7 @@ router.post("/admin/inbox-rules", requireAuth, requireAdmin, async (req, res) =>
     .values({
       label: (label as string).trim(),
       subjectPattern: (subjectPattern as string).trim(),
-      parserType: parserType as "reminder" | "pending_list" | "shipment" | "ad_request",
+      parserType: parserType as "reminder" | "pending_list" | "shipment" | "ad_request" | "subject_as_task" | "bullet_list" | "plain_lines",
       taskSuffix: typeof taskSuffix === "string" && taskSuffix.trim() ? taskSuffix.trim() : null,
       enabled: true,
     })
@@ -433,8 +436,9 @@ router.post("/admin/inbox-rules/:id/test", requireAuth, requireAdmin, async (req
   const id = parseInt(req.params.id, 10);
   if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const { body } = req.body as { body?: unknown };
-  if (typeof body !== "string" || !body.trim()) {
+  const { body, subject: reqSubject } = req.body as { body?: unknown; subject?: unknown };
+  const subject = typeof reqSubject === "string" ? reqSubject : "";
+  if (typeof body !== "string") {
     res.status(400).json({ error: "body is required" });
     return;
   }
@@ -476,6 +480,26 @@ router.post("/admin/inbox-rules/:id/test", requireAuth, requireAdmin, async (req
         : "Task title extracted. No details found after the title.";
     } else {
       parseNote = "No task found. Make sure the body starts with 'Hi name,' followed by the task title on the next line.";
+    }
+  } else if (rule.parserType === "subject_as_task") {
+    const result = parseSubjectAsTask(subject || "(no subject provided)", body);
+    if (result) {
+      tasks = [result.title];
+      parseNote = result.note
+        ? `Body stored as note (${result.note.length} chars).`
+        : "Task created with no note (empty body).";
+    } else {
+      parseNote = "No task found — subject was empty.";
+    }
+  } else if (rule.parserType === "bullet_list") {
+    tasks = parseBulletListBodyOnly(body);
+    if (tasks.length === 0) {
+      parseNote = "No bullet points found. Start lines with -, *, or • followed by a space.";
+    }
+  } else if (rule.parserType === "plain_lines") {
+    tasks = parsePlainLinesBodyOnly(body);
+    if (tasks.length === 0) {
+      parseNote = "No task lines found. Each non-empty line (excluding greetings/signatures) becomes a task.";
     }
   }
 

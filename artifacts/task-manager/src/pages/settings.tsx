@@ -714,7 +714,7 @@ type InboxRule = {
   id: number;
   label: string;
   subjectPattern: string;
-  parserType: "reminder" | "pending_list" | "shipment" | "ad_request";
+  parserType: "reminder" | "pending_list" | "shipment" | "ad_request" | "subject_as_task" | "bullet_list" | "plain_lines";
   taskSuffix: string | null;
   enabled: boolean;
 };
@@ -724,6 +724,9 @@ const PARSER_LABELS: Record<InboxRule["parserType"], string> = {
   pending_list: "Pending list (numbered lines)",
   shipment: "Shipment copies summary",
   ad_request: "Ad request (Hi name, → task + details note)",
+  subject_as_task: "Subject as task (subject → title, body → note)",
+  bullet_list: "Bullet list (- item or • item → tasks)",
+  plain_lines: "Plain lines (each line → a task)",
 };
 
 async function apiFetch(path: string, options?: RequestInit) {
@@ -779,17 +782,20 @@ function InboxRulesCard() {
 
   const [testingId, setTestingId] = useState<number | null>(null);
   const [testBody, setTestBody] = useState("");
+  const [testSubject, setTestSubject] = useState("");
   const [testRunning, setTestRunning] = useState(false);
   const [testResult, setTestResult] = useState<{ tasks: string[]; parseNote: string | null } | null>(null);
 
-  const handleTest = async (id: number) => {
-    if (!testBody.trim()) return;
+  const handleTest = async (id: number, parserType: InboxRule["parserType"]) => {
+    if (parserType !== "subject_as_task" && !testBody.trim()) return;
     setTestRunning(true);
     setTestResult(null);
     try {
+      const payload: Record<string, string> = { body: testBody };
+      if (parserType === "subject_as_task") payload.subject = testSubject;
       const data = await apiFetch(`/api/admin/inbox-rules/${id}/test`, {
         method: "POST",
-        body: JSON.stringify({ body: testBody }),
+        body: JSON.stringify(payload),
       });
       setTestResult({ tasks: (data as any).tasks as string[], parseNote: (data as any).parseNote as string | null });
     } catch (err: any) {
@@ -800,10 +806,11 @@ function InboxRulesCard() {
   };
 
   const openTest = (id: number) => {
-    if (testingId === id) { setTestingId(null); setTestResult(null); setTestBody(""); return; }
+    if (testingId === id) { setTestingId(null); setTestResult(null); setTestBody(""); setTestSubject(""); return; }
     setTestingId(id);
     setTestResult(null);
     setTestBody("");
+    setTestSubject("");
   };
 
   const load = async () => {
@@ -1096,8 +1103,17 @@ function InboxRulesCard() {
               {testingId === rule.id && (
                 <div className="mt-2 rounded-md border border-dashed border-border bg-muted/20 p-3 space-y-2">
                   <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                    <FlaskConical className="w-3 h-3" /> Test — paste a sample email body
+                    <FlaskConical className="w-3 h-3" /> Test — paste a sample email {rule.parserType === "subject_as_task" ? "subject & body" : "body"}
                   </p>
+                  {rule.parserType === "subject_as_task" && (
+                    <input
+                      type="text"
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs font-mono focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      placeholder="Email subject line (becomes the task title)"
+                      value={testSubject}
+                      onChange={(e) => { setTestSubject(e.target.value); setTestResult(null); }}
+                    />
+                  )}
                   <textarea
                     className="w-full rounded-md border border-border bg-background px-3 py-2 text-xs font-mono leading-relaxed resize-y focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     rows={6}
@@ -1108,6 +1124,12 @@ function InboxRulesCard() {
                         ? "1. First task\n2. Second task\n--\nSignature"
                         : rule.parserType === "ad_request"
                         ? "Hi Sujay,\n\nPlease design a full page ad for the below company.\n\nCompany Name\n4115 Some Street\nCity, State 00000"
+                        : rule.parserType === "subject_as_task"
+                        ? "Email body (optional — stored as task note/details)"
+                        : rule.parserType === "bullet_list"
+                        ? "- First task\n- Second task\n• Another task\n* Yet another"
+                        : rule.parserType === "plain_lines"
+                        ? "Fix header alignment\nUpdate client logo\nSend invoice\nThanks"
                         : "Magazine: Vogue\nProject: Spring Issue\n500"
                     }
                     value={testBody}
@@ -1116,8 +1138,8 @@ function InboxRulesCard() {
                   <div className="flex items-center gap-2 justify-end">
                     <Button
                       size="sm"
-                      disabled={testRunning || !testBody.trim()}
-                      onClick={() => handleTest(rule.id)}
+                      disabled={testRunning || (rule.parserType !== "subject_as_task" && !testBody.trim())}
+                      onClick={() => handleTest(rule.id, rule.parserType)}
                     >
                       {testRunning
                         ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />

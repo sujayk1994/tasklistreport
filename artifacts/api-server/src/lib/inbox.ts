@@ -37,6 +37,50 @@ const SHIPMENT_DELAY_DAYS = 3;
 const SHIPMENT_COPIES_OFFSET = 2;
 
 /**
+ * subject_as_task — the email subject becomes the task title and the body
+ * (trimmed) is stored as the task note. Returns null if subject is empty.
+ */
+export function parseSubjectAsTask(
+  subject: string,
+  body: string,
+): { title: string; note: string } | null {
+  const title = subject.trim();
+  if (!title) return null;
+  return { title, note: body.trim() };
+}
+
+/**
+ * bullet_list — lines that begin with a bullet marker (-, *, •, –)
+ * each become a separate task. Indented sub-bullets are ignored.
+ */
+export function parseBulletListBodyOnly(body: string): string[] {
+  const cleaned = body.replace(/\u00a0/g, " ");
+  const tasks: string[] = [];
+  for (const raw of cleaned.split(/\r?\n/)) {
+    const m = raw.match(/^[\s]*[-*•–]\s+(.+)$/);
+    if (m) {
+      const text = m[1].trim();
+      if (text) tasks.push(text);
+    }
+  }
+  return tasks;
+}
+
+/**
+ * plain_lines — every non-empty line in the body becomes a separate task.
+ * Greeting lines ("Hi …,"), separator lines ("--", "---"), and common
+ * signature patterns ("Thanks", "Regards", "Best") are stripped.
+ */
+export function parsePlainLinesBodyOnly(body: string): string[] {
+  const cleaned = body.replace(/\u00a0/g, " ");
+  const SKIP = /^(hi\b|hello\b|hey\b|dear\b|thanks|thank you|regards|best|cheers|sincerely|--+)/i;
+  return cleaned
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !SKIP.test(l));
+}
+
+/**
  * Body-only reminder parser — extracts tasks from the "sent today:" section
  * without checking the subject. Exported so DB-driven rules can use it with
  * a custom taskSuffix.
@@ -624,6 +668,27 @@ async function processMessageWithDbRules(
       if (result) {
         logger.info({ subject, rule: rule.label, title: result.title }, "inbox: DB rule matched (ad_request)");
         await ingestTasksWithNotesForAllUsers([{ text: result.title, note: result.details }]);
+        handled = true;
+      }
+    } else if (rule.parserType === "subject_as_task") {
+      const result = parseSubjectAsTask(subject, body);
+      if (result) {
+        logger.info({ subject, rule: rule.label }, "inbox: DB rule matched (subject_as_task)");
+        await ingestTasksWithNotesForAllUsers([{ text: result.title, note: result.note }]);
+        handled = true;
+      }
+    } else if (rule.parserType === "bullet_list") {
+      const tasks = parseBulletListBodyOnly(body);
+      if (tasks.length > 0) {
+        logger.info({ subject, rule: rule.label, count: tasks.length }, "inbox: DB rule matched (bullet_list)");
+        await ingestTasksForAllUsers(tasks);
+        handled = true;
+      }
+    } else if (rule.parserType === "plain_lines") {
+      const tasks = parsePlainLinesBodyOnly(body);
+      if (tasks.length > 0) {
+        logger.info({ subject, rule: rule.label, count: tasks.length }, "inbox: DB rule matched (plain_lines)");
+        await ingestTasksForAllUsers(tasks);
         handled = true;
       }
     }
