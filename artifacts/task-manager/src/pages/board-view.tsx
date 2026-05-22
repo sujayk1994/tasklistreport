@@ -26,6 +26,7 @@ import {
   BellOff,
 } from "lucide-react";
 import { HighlightedText } from "@/lib/highlight";
+import { NoteModal } from "@/components/NoteModal";
 
 export type BoardTask = {
   id: number;
@@ -561,6 +562,7 @@ export function BoardView({
   const [newTagKeyword, setNewTagKeyword] = useState("");
   const [newTagSwatch, setNewTagSwatch] = useState(PALETTE[0].swatch);
   const [openNoteFor, setOpenNoteFor] = useState<number | null>(null);
+  const [noteModalFor, setNoteModalFor] = useState<number | null>(null);
   const [boardWidth, setBoardWidth] = useState<number>(1200);
   const [draggingId, setDraggingId] = useState<number | null>(null);
 
@@ -1897,15 +1899,14 @@ export function BoardView({
                       onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (!isSubmitted) setOpenNoteFor(task.id);
+                        setNoteModalFor(task.id);
                       }}
-                      title={isSubmitted ? "Note (read-only)" : "Click to edit note"}
-                      disabled={isSubmitted}
-                      className="mt-2 ml-6 w-[calc(100%-1.5rem)] text-left flex items-start gap-1.5 text-[12px] italic opacity-80 hover:opacity-100 border-l-2 pl-2 rounded-sm hover:bg-white/40 disabled:cursor-default"
+                      title="Click to view full note"
+                      className="mt-2 ml-6 w-[calc(100%-1.5rem)] text-left flex items-start gap-1.5 text-[12px] italic opacity-80 hover:opacity-100 border-l-2 pl-2 rounded-sm hover:bg-white/40"
                       style={{ borderColor: tag.ribbon }}
                     >
                       <MessageSquare size={11} className="mt-0.5 shrink-0" />
-                      <span className="break-words">{noteValue}</span>
+                      <span className="line-clamp-3 break-words">{noteValue}</span>
                     </button>
                   )}
 
@@ -2501,6 +2502,21 @@ export function BoardView({
         <span>Drag a note onto Completed to file it · drag onto Bin to delete · stacks move as one.</span>
         <span className="italic">Scroll the board vertically · positions, tags & stacks are saved on this device.</span>
       </div>
+
+      {noteModalFor !== null && (() => {
+        const t = tasks.find((x) => x.id === noteModalFor);
+        const note = (comments[noteModalFor] ?? t?.note ?? "").trim();
+        return note ? (
+          <NoteModal
+            note={note}
+            onClose={() => setNoteModalFor(null)}
+            onEdit={isSubmitted ? undefined : () => {
+              setOpenNoteFor(noteModalFor);
+              setNoteModalFor(null);
+            }}
+          />
+        ) : null;
+      })()}
     </div>
   );
 }

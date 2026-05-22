@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { NoteModal } from "@/components/NoteModal";
 import { getReportMode, submitDayAndDownload } from "@/lib/reportMode";
 import {
   useGetTodayTasks,
@@ -147,6 +148,7 @@ export default function AppView() {
   const [completedFilter, setCompletedFilter] = useState<CompletedFilter>("all");
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [editingNoteFor, setEditingNoteFor] = useState<number | null>(null);
+  const [noteModalFor, setNoteModalFor] = useState<number | null>(null);
   const addTextRef = useRef<HTMLTextAreaElement | null>(null);
   // Persisted UI preferences (survive reloads).
   const [darkMode, setDarkMode] = useState<boolean>(() => {
@@ -859,6 +861,10 @@ export default function AppView() {
     (t) => ageMatches(t) && completedMatches(t) && searchMatches(t),
   );
 
+  const noteModalNote = noteModalFor !== null
+    ? (comments[noteModalFor] ?? (taskList.tasks as Array<{ id: number; note?: string }>).find((x) => x.id === noteModalFor)?.note ?? "")
+    : "";
+
   const priorityCount = taskList.tasks.filter((t) => isPriorityTitle(t.text)).length;
   const newerCount = taskList.tasks.filter(
     (t) => daysSinceCreated((t as { createdAt?: string }).createdAt) <= 1,
@@ -1323,6 +1329,7 @@ export default function AppView() {
             comments={comments}
             editingNoteFor={editingNoteFor}
             setEditingNoteFor={setEditingNoteFor}
+            onOpenNoteModal={setNoteModalFor}
             onToggle={handleToggle}
             onDelete={handleDeleteTask}
             onCopy={handleCopyTask}
@@ -1332,6 +1339,13 @@ export default function AppView() {
             onNoteBlur={handleNoteBlur}
             notifiedIds={notifiedIds}
             onToggleNotification={toggleNotification}
+          />
+        )}
+        {noteModalFor !== null && noteModalNote && (
+          <NoteModal
+            note={noteModalNote}
+            onClose={() => setNoteModalFor(null)}
+            onEdit={() => { setEditingNoteFor(noteModalFor); setNoteModalFor(null); }}
           />
         )}
       </div>
@@ -1360,6 +1374,7 @@ function ListView({
   comments,
   editingNoteFor,
   setEditingNoteFor,
+  onOpenNoteModal,
   onToggle,
   onDelete,
   onCopy,
@@ -1375,6 +1390,7 @@ function ListView({
   comments: Record<number, string>;
   editingNoteFor: number | null;
   setEditingNoteFor: (id: number | null) => void;
+  onOpenNoteModal: (id: number) => void;
   onToggle: (id: number) => void;
   onDelete: (id: number) => void;
   onCopy: (text: string) => void;
@@ -1542,10 +1558,14 @@ function ListView({
                   </div>
 
                   {noteValue && !editingNote && (
-                    <div className="mt-2 flex items-start gap-1.5 text-[12.5px] italic text-[#5C543F] border-l-2 border-[#7C3AED]/40 pl-2">
+                    <button
+                      type="button"
+                      onClick={() => onOpenNoteModal(task.id)}
+                      className="mt-2 w-full text-left flex items-start gap-1.5 text-[12.5px] italic text-[#5C543F] border-l-2 border-[#7C3AED]/40 pl-2 hover:opacity-80 transition-opacity"
+                    >
                       <MessageSquare size={11} className="mt-0.5 shrink-0" />
-                      <span className="break-words">{noteValue}</span>
-                    </div>
+                      <span className="line-clamp-3 break-words">{noteValue}</span>
+                    </button>
                   )}
 
                   {editingNote && (
