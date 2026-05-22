@@ -279,6 +279,18 @@ export default function AppView() {
     },
   });
 
+  // Ask for notification permission shortly after first load so the user is
+  // ready to receive inbox task alerts before the first email arrives.
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      if (typeof window !== "undefined" && "Notification" in window &&
+          Notification.permission === "default") {
+        Notification.requestPermission();
+      }
+    }, 2500);
+    return () => window.clearTimeout(t);
+  }, []);
+
   const inboxAlertInitialized = useRef(false);
   useEffect(() => {
     if (!taskList?.tasks) return;
