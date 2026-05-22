@@ -80,6 +80,44 @@ export function parsePlainLinesBodyOnly(body: string): string[] {
     .filter((l) => l.length > 0 && !SKIP.test(l));
 }
 
+// ---------------------------------------------------------------------------
+// Urgency detection — applies to ALL parsers and both code paths
+// ---------------------------------------------------------------------------
+
+const URGENCY_RE = /\b(urgent|urgently|priority|asap|immediately|critical)\b/i;
+
+/**
+ * Returns true if "urgent", "priority", "asap", etc. appear anywhere in
+ * the email subject or body (case-insensitive, whole-word match).
+ */
+export function detectUrgency(subject: string, body: string): boolean {
+  return URGENCY_RE.test(subject) || URGENCY_RE.test(body);
+}
+
+/**
+ * Appends " - urgent" to each task text when the email was detected as
+ * urgent — but only if the text doesn't already contain an urgency word,
+ * preventing redundant markers like "URGENT design - urgent".
+ */
+export function markUrgentTasks(tasks: string[], urgent: boolean): string[] {
+  if (!urgent) return tasks;
+  return tasks.map((t) => (URGENCY_RE.test(t) ? t : `${t} - urgent`));
+}
+
+/**
+ * Same as markUrgentTasks but for tasks that also carry a note.
+ */
+export function markUrgentTasksWithNotes(
+  tasks: { text: string; note?: string | null }[],
+  urgent: boolean,
+): { text: string; note?: string | null }[] {
+  if (!urgent) return tasks;
+  return tasks.map((t) => ({
+    ...t,
+    text: URGENCY_RE.test(t.text) ? t.text : `${t.text} - urgent`,
+  }));
+}
+
 /**
  * Body-only reminder parser — extracts tasks from the "sent today:" section
  * without checking the subject. Exported so DB-driven rules can use it with
@@ -402,14 +440,16 @@ async function processMessage(message: FetchMessageObject): Promise<boolean> {
   const subject = parsed.subject ?? "";
   const body = parsed.text ?? "";
 
+  const urgent = detectUrgency(subject, body);
+
   // Twitter Marketing / Reprint reminders.
   const reminder = parseReminderEmail(subject, body);
   if (reminder) {
     logger.info(
-      { subject, kind: reminder.kind, count: reminder.tasks.length },
+      { subject, kind: reminder.kind, count: reminder.tasks.length, urgent },
       "inbox: parsed reminder email",
     );
-    await ingestTasksForAllUsers(reminder.tasks);
+    await ingestTasksForAllUsers(markUrgentTasks(reminder.tasks, urgent));
     return true;
   }
 
@@ -417,10 +457,10 @@ async function processMessage(message: FetchMessageObject): Promise<boolean> {
   const pending = parsePendingListEmail(subject, body);
   if (pending) {
     logger.info(
-      { subject, count: pending.length },
+      { subject, count: pending.length, urgent },
       "inbox: parsed pending list email",
     );
-    await ingestTasksForAllUsers(pending);
+    await ingestTasksForAllUsers(markUrgentTasks(pending, urgent));
     return true;
   }
 
@@ -429,10 +469,10 @@ async function processMessage(message: FetchMessageObject): Promise<boolean> {
   const shipment = parseShipmentEmail(subject, body);
   if (shipment) {
     logger.info(
-      { subject, count: shipment.length },
+      { subject, count: shipment.length, urgent },
       "inbox: parsed shipment email",
     );
-    await processShipmentEmail(shipment);
+    await processShipmentEmail(shipment, urgent);
     return true;
   }
 
@@ -495,11 +535,11 @@ async function markProcessed(
   }
 }
 
-async function processShipmentEmail(entries: ShipmentEntry[]): Promise<void> {
+async function processShipmentEmail(entries: ShipmentEntry[], urgent = false): Promise<void> {
   const today = getLocalDateString();
   const shipmentDate = computeShipmentDate(today);
 
-  const printTasks = entries.map(formatPrintTask);
+  const printTasks = markUrgentTasks(entries.map(formatPrintTask), urgent);
   await ingestTasksForAllUsers(printTasks, today);
 
   // Persist a schedule row per (magazine, project, today). Idempotent thanks
@@ -635,6 +675,8 @@ async function processMessageWithDbRules(
   const subject = parsed.subject ?? "";
   const body = parsed.text ?? "";
 
+  const urgent = detectUrgency(subject, body);
+
   let handled = false;
   for (const rule of rules) {
     let re: RegExp;
@@ -643,51 +685,54 @@ async function processMessageWithDbRules(
 
     if (rule.parserType === "reminder") {
       const suffix = rule.taskSuffix ?? rule.label;
-      const tasks = parseReminderBodyOnly(body, suffix);
+      const tasks = markUrgentTasks(parseReminderBodyOnly(body, suffix), urgent);
       if (tasks.length > 0) {
-        logger.info({ subject, rule: rule.label, count: tasks.length }, "inbox: DB rule matched (reminder)");
+        logger.info({ subject, rule: rule.label, count: tasks.length, urgent }, "inbox: DB rule matched (reminder)");
         await ingestTasksForAllUsers(tasks);
         handled = true;
       }
     } else if (rule.parserType === "pending_list") {
-      const tasks = parsePendingListBodyOnly(body);
-      if (tasks && tasks.length > 0) {
-        logger.info({ subject, rule: rule.label, count: tasks.length }, "inbox: DB rule matched (pending_list)");
+      const raw = parsePendingListBodyOnly(body);
+      const tasks = markUrgentTasks(raw ?? [], urgent);
+      if (tasks.length > 0) {
+        logger.info({ subject, rule: rule.label, count: tasks.length, urgent }, "inbox: DB rule matched (pending_list)");
         await ingestTasksForAllUsers(tasks);
         handled = true;
       }
     } else if (rule.parserType === "shipment") {
       const entries = parseShipmentBodyOnly(body);
       if (entries && entries.length > 0) {
-        logger.info({ subject, rule: rule.label, count: entries.length }, "inbox: DB rule matched (shipment)");
-        await processShipmentEmail(entries);
+        logger.info({ subject, rule: rule.label, count: entries.length, urgent }, "inbox: DB rule matched (shipment)");
+        await processShipmentEmail(entries, urgent);
         handled = true;
       }
     } else if (rule.parserType === "ad_request") {
       const result = parseAdRequestBodyOnly(body);
       if (result) {
-        logger.info({ subject, rule: rule.label, title: result.title }, "inbox: DB rule matched (ad_request)");
-        await ingestTasksWithNotesForAllUsers([{ text: result.title, note: result.details }]);
+        logger.info({ subject, rule: rule.label, title: result.title, urgent }, "inbox: DB rule matched (ad_request)");
+        const [marked] = markUrgentTasksWithNotes([{ text: result.title, note: result.details }], urgent);
+        await ingestTasksWithNotesForAllUsers([marked]);
         handled = true;
       }
     } else if (rule.parserType === "subject_as_task") {
       const result = parseSubjectAsTask(subject, body);
       if (result) {
-        logger.info({ subject, rule: rule.label }, "inbox: DB rule matched (subject_as_task)");
-        await ingestTasksWithNotesForAllUsers([{ text: result.title, note: result.note }]);
+        logger.info({ subject, rule: rule.label, urgent }, "inbox: DB rule matched (subject_as_task)");
+        const [marked] = markUrgentTasksWithNotes([{ text: result.title, note: result.note }], urgent);
+        await ingestTasksWithNotesForAllUsers([marked]);
         handled = true;
       }
     } else if (rule.parserType === "bullet_list") {
-      const tasks = parseBulletListBodyOnly(body);
+      const tasks = markUrgentTasks(parseBulletListBodyOnly(body), urgent);
       if (tasks.length > 0) {
-        logger.info({ subject, rule: rule.label, count: tasks.length }, "inbox: DB rule matched (bullet_list)");
+        logger.info({ subject, rule: rule.label, count: tasks.length, urgent }, "inbox: DB rule matched (bullet_list)");
         await ingestTasksForAllUsers(tasks);
         handled = true;
       }
     } else if (rule.parserType === "plain_lines") {
-      const tasks = parsePlainLinesBodyOnly(body);
+      const tasks = markUrgentTasks(parsePlainLinesBodyOnly(body), urgent);
       if (tasks.length > 0) {
-        logger.info({ subject, rule: rule.label, count: tasks.length }, "inbox: DB rule matched (plain_lines)");
+        logger.info({ subject, rule: rule.label, count: tasks.length, urgent }, "inbox: DB rule matched (plain_lines)");
         await ingestTasksForAllUsers(tasks);
         handled = true;
       }
