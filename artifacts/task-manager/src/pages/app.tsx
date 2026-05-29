@@ -302,7 +302,15 @@ export default function AppView() {
       initInboxAlertBaseline(tasks);
       return;
     }
-    alertNewInboxTasks(tasks);
+    alertNewInboxTasks(tasks).then(({ priorityIds }) => {
+      if (priorityIds.length === 0) return;
+      setNotifiedIdsState((prev) => {
+        const next = new Set(prev);
+        priorityIds.forEach((id) => next.add(id));
+        setNotifiedIds(next);
+        return next;
+      });
+    });
   }, [taskList]);
 
   // Scheduler: tick every 60s, fire once per 30-min window after 8 PM IST.

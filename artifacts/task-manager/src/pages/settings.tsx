@@ -35,6 +35,7 @@ import {
   ChevronDown,
   ChevronUp,
   HelpCircle,
+  Bell,
 } from "lucide-react";
 import {
   Dialog,
@@ -43,6 +44,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useReportMode, type ReportMode } from "@/lib/reportMode";
+import {
+  getReminderStart,
+  setReminderStart,
+  getReminderIntervalMinutes,
+  setReminderIntervalMinutes,
+} from "@/lib/taskNotifications";
 import { cn } from "@/lib/utils";
 import {
   Card,
@@ -153,6 +160,17 @@ export default function Settings() {
   });
 
   const [reportMode, setReportModeValue] = useReportMode();
+
+  // Reminder settings (localStorage only — no backend needed)
+  const [reminderHour, setReminderHour] = useState<number>(() => getReminderStart().hour);
+  const [reminderMinute, setReminderMinute] = useState<number>(() => getReminderStart().minute);
+  const [reminderInterval, setReminderInterval] = useState<number>(() => getReminderIntervalMinutes());
+
+  const saveReminderSettings = () => {
+    setReminderStart(reminderHour, reminderMinute);
+    setReminderIntervalMinutes(reminderInterval);
+    toast.success("Reminder settings saved");
+  };
 
   const [diagnostics, setDiagnostics] = useState<EmailDiagnostics | null>(null);
   const [diagnosticsError, setDiagnosticsError] = useState<string | null>(null);
@@ -342,6 +360,93 @@ export default function Settings() {
         </CardHeader>
         <CardContent>
           <ReportModeSelector value={reportMode} onChange={setReportModeValue} />
+        </CardContent>
+      </Card>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Reminder settings card                                               */}
+      {/* ------------------------------------------------------------------ */}
+      <Card className="border-border/60 bg-card/60 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Bell className="w-5 h-5 text-primary" />
+            Reminder Notifications
+          </CardTitle>
+          <CardDescription>
+            Configure when the evening bell reminders fire for tasks you've
+            activated notifications on. Priority tasks from email are
+            auto-activated. Times are in IST.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Start time (IST)</label>
+            <p className="text-xs text-muted-foreground">
+              Reminders won't fire before this time.
+            </p>
+            <div className="flex items-center gap-2">
+              <Select
+                value={String(reminderHour)}
+                onValueChange={(v) => setReminderHour(Number(v))}
+              >
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <SelectItem key={i} value={String(i)}>
+                      {String(i).padStart(2, "0")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-sm font-medium">:</span>
+              <Select
+                value={String(reminderMinute)}
+                onValueChange={(v) => setReminderMinute(Number(v))}
+              >
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[0, 15, 30, 45].map((m) => (
+                    <SelectItem key={m} value={String(m)}>
+                      {String(m).padStart(2, "0")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <span className="text-sm text-muted-foreground">IST</span>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Repeat every</label>
+            <p className="text-xs text-muted-foreground">
+              How often to re-notify after the start time.
+            </p>
+            <Select
+              value={String(reminderInterval)}
+              onValueChange={(v) => setReminderInterval(Number(v))}
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="15">15 minutes</SelectItem>
+                <SelectItem value="20">20 minutes</SelectItem>
+                <SelectItem value="30">30 minutes</SelectItem>
+                <SelectItem value="45">45 minutes</SelectItem>
+                <SelectItem value="60">60 minutes</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={saveReminderSettings} className="min-w-[120px]">
+              Save Reminder Settings
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

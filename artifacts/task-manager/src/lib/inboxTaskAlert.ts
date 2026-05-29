@@ -5,7 +5,12 @@
  * fire a browser notification + a distinct "incoming" chime — even when the
  * tab is minimised.  Seen IDs are persisted to localStorage keyed by today's
  * date so the set resets automatically the next day.
+ *
+ * Priority tasks (containing urgent/priority/asap/immediately/critical) also
+ * return their IDs so the caller can auto-activate the bell reminder for them.
  */
+
+const PRIORITY_RE = /\b(urgent|priority|asap|immediately|critical)\b/i;
 
 const storageKey = (): string =>
   `inbox-task-alert-seen-${new Date().toISOString().slice(0, 10)}`;
@@ -75,29 +80,45 @@ export async function ensureInboxAlertPermission(): Promise<boolean> {
   return result === "granted";
 }
 
+export type InboxAlertResult = {
+  /** Total count of newly-arrived inbox tasks that were notified. */
+  count: number;
+  /**
+   * IDs of newly-arrived inbox tasks that are flagged as priority
+   * (contain urgent/priority/asap/immediately/critical). The caller should
+   * auto-activate the bell reminder for these.
+   */
+  priorityIds: number[];
+};
+
 /**
  * Checks a freshly-fetched task list for new inbox-sourced tasks and fires
  * a notification + chime for any that haven't been alerted yet today.
- * Returns the count of newly alerted tasks (0 if nothing new).
+ * Returns count of notified tasks and IDs of priority ones.
  */
 export async function alertNewInboxTasks(
   tasks: Array<{ id: number; text: string; source: string }>,
-): Promise<number> {
-  if (typeof window === "undefined" || !("Notification" in window)) return 0;
+): Promise<InboxAlertResult> {
+  if (typeof window === "undefined" || !("Notification" in window))
+    return { count: 0, priorityIds: [] };
 
   const inboxTasks = tasks.filter((t) => t.source === "inbox");
-  if (inboxTasks.length === 0) return 0;
+  if (inboxTasks.length === 0) return { count: 0, priorityIds: [] };
 
   const seen = loadSeenIds();
   const newTasks = inboxTasks.filter((t) => !seen.has(t.id));
-  if (newTasks.length === 0) return 0;
+  if (newTasks.length === 0) return { count: 0, priorityIds: [] };
 
   const granted = await ensureInboxAlertPermission();
 
   newTasks.forEach((t) => seen.add(t.id));
   saveSeenIds(seen);
 
-  if (!granted) return 0;
+  const priorityIds = newTasks
+    .filter((t) => PRIORITY_RE.test(t.text))
+    .map((t) => t.id);
+
+  if (!granted) return { count: 0, priorityIds };
 
   playInboxChime();
 
@@ -115,5 +136,5 @@ export async function alertNewInboxTasks(
     });
   }
 
-  return newTasks.length;
+  return { count: newTasks.length, priorityIds };
 }

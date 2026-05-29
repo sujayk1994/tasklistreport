@@ -1,14 +1,52 @@
 const STORAGE_KEY = "task-notifications-v1";
 const LAST_FIRED_KEY = "task-notifications-last-fired";
-const INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-const START_HOUR_IST = 20; // 8 PM IST
+const REMINDER_START_KEY = "reminder-start-time";
+const REMINDER_INTERVAL_KEY = "reminder-interval-minutes";
 
 // IST is UTC+5:30
-function getCurrentISTHour(): number {
+function getCurrentISTTime(): { hour: number; minute: number } {
   const now = new Date();
   const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
   const istMs = utcMs + 5.5 * 60 * 60_000;
-  return new Date(istMs).getHours();
+  const ist = new Date(istMs);
+  return { hour: ist.getHours(), minute: ist.getMinutes() };
+}
+
+export function getReminderStart(): { hour: number; minute: number } {
+  try {
+    const raw = window.localStorage.getItem(REMINDER_START_KEY);
+    if (raw) {
+      const [h, m] = raw.split(":").map(Number);
+      if (!isNaN(h) && !isNaN(m)) return { hour: h, minute: m };
+    }
+  } catch {}
+  return { hour: 20, minute: 30 }; // default 8:30 PM IST
+}
+
+export function setReminderStart(hour: number, minute: number): void {
+  try {
+    window.localStorage.setItem(
+      REMINDER_START_KEY,
+      `${hour}:${String(minute).padStart(2, "0")}`,
+    );
+  } catch {}
+}
+
+export function getReminderIntervalMinutes(): number {
+  try {
+    const raw = window.localStorage.getItem(REMINDER_INTERVAL_KEY);
+    if (raw) {
+      const n = parseInt(raw, 10);
+      if (!isNaN(n) && n > 0) return n;
+    }
+  } catch {}
+  return 30; // default 30 min
+}
+
+export function setReminderIntervalMinutes(min: number): void {
+  try {
+    window.localStorage.setItem(REMINDER_INTERVAL_KEY, String(min));
+  } catch {}
 }
 
 export function getNotifiedIds(): Set<number> {
@@ -64,12 +102,16 @@ export function playNotificationSound(): void {
 }
 
 export function shouldFireNow(): boolean {
-  const hour = getCurrentISTHour();
-  if (hour < START_HOUR_IST) return false;
+  const { hour, minute } = getCurrentISTTime();
+  const start = getReminderStart();
+  const currentTotalMinutes = hour * 60 + minute;
+  const startTotalMinutes = start.hour * 60 + start.minute;
+  if (currentTotalMinutes < startTotalMinutes) return false;
 
+  const intervalMs = getReminderIntervalMinutes() * 60 * 1000;
   const raw = window.localStorage.getItem(LAST_FIRED_KEY);
   const lastFired = raw ? parseInt(raw, 10) : 0;
-  return Date.now() - lastFired >= INTERVAL_MS;
+  return Date.now() - lastFired >= intervalMs;
 }
 
 export function markFired(): void {
