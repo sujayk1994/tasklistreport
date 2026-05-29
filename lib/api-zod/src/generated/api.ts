@@ -53,6 +53,9 @@ export const GetTodayTasksResponse = zod.object({
         .describe(
           "'inbox' for email-created tasks, 'user' for manually created ones.",
         ),
+      elapsedSeconds: zod
+        .number()
+        .describe("Total seconds logged on this task via the built-in timer."),
     }),
   ),
 });
@@ -100,6 +103,9 @@ export const CreateTodayTasksResponse = zod.object({
         .describe(
           "'inbox' for email-created tasks, 'user' for manually created ones.",
         ),
+      elapsedSeconds: zod
+        .number()
+        .describe("Total seconds logged on this task via the built-in timer."),
     }),
   ),
 });
@@ -147,6 +153,9 @@ export const AddTaskResponse = zod.object({
         .describe(
           "'inbox' for email-created tasks, 'user' for manually created ones.",
         ),
+      elapsedSeconds: zod
+        .number()
+        .describe("Total seconds logged on this task via the built-in timer."),
     }),
   ),
 });
@@ -206,6 +215,9 @@ export const UpdateTaskNoteResponse = zod.object({
     .describe(
       "'inbox' for email-created tasks, 'user' for manually created ones.",
     ),
+  elapsedSeconds: zod
+    .number()
+    .describe("Total seconds logged on this task via the built-in timer."),
 });
 
 /**
@@ -234,6 +246,9 @@ export const ToggleTaskResponse = zod.object({
     .describe(
       "'inbox' for email-created tasks, 'user' for manually created ones.",
     ),
+  elapsedSeconds: zod
+    .number()
+    .describe("Total seconds logged on this task via the built-in timer."),
 });
 
 /**
@@ -263,6 +278,9 @@ export const UpdateTaskTextResponse = zod.object({
     .describe(
       "'inbox' for email-created tasks, 'user' for manually created ones.",
     ),
+  elapsedSeconds: zod
+    .number()
+    .describe("Total seconds logged on this task via the built-in timer."),
 });
 
 /**
@@ -292,6 +310,41 @@ export const SetTaskPostedForFutureResponse = zod.object({
     .describe(
       "'inbox' for email-created tasks, 'user' for manually created ones.",
     ),
+  elapsedSeconds: zod
+    .number()
+    .describe("Total seconds logged on this task via the built-in timer."),
+});
+
+/**
+ * @summary Save elapsed seconds for a task
+ */
+export const UpdateTaskTimerBody = zod.object({
+  taskId: zod.number(),
+  elapsedSeconds: zod.number(),
+});
+
+export const UpdateTaskTimerResponse = zod.object({
+  id: zod.number(),
+  text: zod.string(),
+  completed: zod.boolean(),
+  note: zod.string(),
+  position: zod.number(),
+  postedForFuture: zod
+    .boolean()
+    .describe(
+      "Marks the task as scheduled for a future date — hidden from the active board, included in the daily report, and never carried over.",
+    ),
+  createdAt: zod
+    .string()
+    .describe("ISO-8601 timestamp of when the task was created."),
+  source: zod
+    .string()
+    .describe(
+      "'inbox' for email-created tasks, 'user' for manually created ones.",
+    ),
+  elapsedSeconds: zod
+    .number()
+    .describe("Total seconds logged on this task via the built-in timer."),
 });
 
 /**
@@ -397,6 +450,9 @@ export const GetTasksByDateResponse = zod.object({
         .describe(
           "'inbox' for email-created tasks, 'user' for manually created ones.",
         ),
+      elapsedSeconds: zod
+        .number()
+        .describe("Total seconds logged on this task via the built-in timer."),
     }),
   ),
 });

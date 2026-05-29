@@ -25,4 +25,5 @@ export * from "./toggleTaskBody";
 export * from "./updateSettingsBody";
 export * from "./updateTaskNoteBody";
 export * from "./updateTaskTextBody";
+export * from "./updateTaskTimerBody";
 export * from "./userSettings";

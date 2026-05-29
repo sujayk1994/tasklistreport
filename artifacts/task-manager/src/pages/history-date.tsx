@@ -1,8 +1,9 @@
 import { useRoute, Link } from "wouter";
 import { useGetTasksByDate, getGetTasksByDateQueryKey } from "@workspace/api-client-react";
 import { format, parseISO } from "date-fns";
-import { Loader2, ArrowLeft, Check, CheckSquare } from "lucide-react";
+import { Loader2, ArrowLeft, Check, CheckSquare, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatDuration } from "@/lib/taskTimer";
 
 export default function HistoryDate() {
   const [, params] = useRoute("/history/:date");
@@ -74,10 +75,18 @@ export default function HistoryDate() {
             }`}>
               {task.completed && <CheckSquare className="w-3.5 h-3.5" />}
             </div>
-            <div className={`flex-1 text-base leading-relaxed ${
-              task.completed ? 'text-muted-foreground line-through' : 'text-foreground'
-            }`}>
-              {task.text}
+            <div className="flex-1 min-w-0">
+              <span className={`text-base leading-relaxed ${
+                task.completed ? 'text-muted-foreground line-through' : 'text-foreground'
+              }`}>
+                {task.text}
+              </span>
+              {(task.elapsedSeconds ?? 0) > 0 && (
+                <div className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <Timer size={11} />
+                  {formatDuration(task.elapsedSeconds ?? 0)}
+                </div>
+              )}
             </div>
           </div>
         ))}

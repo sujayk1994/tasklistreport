@@ -31,6 +31,7 @@ import type {
   UpdateSettingsBody,
   UpdateTaskNoteBody,
   UpdateTaskTextBody,
+  UpdateTaskTimerBody,
   UserSettings,
 } from "./api.schemas";
 
@@ -956,6 +957,92 @@ export const useSetTaskPostedForFuture = <
   TContext
 > => {
   return useMutation(getSetTaskPostedForFutureMutationOptions(options));
+};
+
+/**
+ * @summary Save elapsed seconds for a task
+ */
+export const getUpdateTaskTimerUrl = () => {
+  return `/api/tasks/today/timer`;
+};
+
+export const updateTaskTimer = async (
+  updateTaskTimerBody: UpdateTaskTimerBody,
+  options?: RequestInit,
+): Promise<Task> => {
+  return customFetch<Task>(getUpdateTaskTimerUrl(), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateTaskTimerBody),
+  });
+};
+
+export const getUpdateTaskTimerMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTaskTimer>>,
+    TError,
+    { data: BodyType<UpdateTaskTimerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateTaskTimer>>,
+  TError,
+  { data: BodyType<UpdateTaskTimerBody> },
+  TContext
+> => {
+  const mutationKey = ["updateTaskTimer"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateTaskTimer>>,
+    { data: BodyType<UpdateTaskTimerBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return updateTaskTimer(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateTaskTimerMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateTaskTimer>>
+>;
+export type UpdateTaskTimerMutationBody = BodyType<UpdateTaskTimerBody>;
+export type UpdateTaskTimerMutationError = ErrorType<void>;
+
+/**
+ * @summary Save elapsed seconds for a task
+ */
+export const useUpdateTaskTimer = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateTaskTimer>>,
+    TError,
+    { data: BodyType<UpdateTaskTimerBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateTaskTimer>>,
+  TError,
+  { data: BodyType<UpdateTaskTimerBody> },
+  TContext
+> => {
+  return useMutation(getUpdateTaskTimerMutationOptions(options));
 };
 
 /**

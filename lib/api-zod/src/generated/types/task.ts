@@ -18,4 +18,6 @@ export interface Task {
   createdAt: string;
   /** 'inbox' for email-created tasks, 'user' for manually created ones. */
   source: string;
+  /** Total seconds logged on this task via the built-in timer. */
+  elapsedSeconds: number;
 }

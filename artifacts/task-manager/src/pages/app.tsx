@@ -13,6 +13,7 @@ import {
   useUpdateTaskNote,
   useUpdateTaskText,
   useSetTaskPostedForFuture,
+  useUpdateTaskTimer,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,9 @@ import {
   EyeOff,
   Bell,
   BellOff,
+  Play,
+  Pause,
+  Timer,
 } from "lucide-react";
 import {
   getNotifiedIds,
@@ -68,6 +72,13 @@ import {
   shouldFireNow,
   fireNotificationsForTasks,
 } from "@/lib/taskNotifications";
+import {
+  getRunningTimer,
+  startTimer,
+  clearRunningTimer,
+  liveElapsedSeconds,
+  formatDuration,
+} from "@/lib/taskTimer";
 import { alertNewInboxTasks, initInboxAlertBaseline } from "@/lib/inboxTaskAlert";
 import { HighlightedText } from "@/lib/highlight";
 import { BoardViewSafe, isPriorityTitle, daysSinceCreated } from "./board-view";
@@ -200,6 +211,41 @@ export default function AppView() {
     setNotifiedIdsState(next);
     setNotifiedIds(next);
   }, [notifiedIds]);
+
+  // Task timer — one timer can run at a time, persisted to localStorage.
+  const [runningTimerId, setRunningTimerId] = useState<number | null>(
+    () => getRunningTimer()?.taskId ?? null
+  );
+  const [, setTimerTick] = useState(0);
+  const updateTaskTimer = useUpdateTaskTimer();
+
+  useEffect(() => {
+    if (runningTimerId === null) return;
+    const id = window.setInterval(() => setTimerTick((t) => t + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [runningTimerId]);
+
+  const handleTimerToggle = useCallback(
+    (taskId: number, savedSeconds: number) => {
+      if (runningTimerId === taskId) {
+        const total = liveElapsedSeconds(taskId, savedSeconds);
+        clearRunningTimer();
+        setRunningTimerId(null);
+        updateTaskTimer.mutate({ data: { taskId, elapsedSeconds: total } });
+      } else {
+        if (runningTimerId !== null) {
+          const tasks = (taskList?.tasks ?? []) as Array<{ id: number; elapsedSeconds?: number }>;
+          const prev = tasks.find((t) => t.id === runningTimerId);
+          const prevTotal = liveElapsedSeconds(runningTimerId, prev?.elapsedSeconds ?? 0);
+          clearRunningTimer();
+          updateTaskTimer.mutate({ data: { taskId: runningTimerId, elapsedSeconds: prevTotal } });
+        }
+        startTimer(taskId);
+        setRunningTimerId(taskId);
+      }
+    },
+    [runningTimerId, taskList, updateTaskTimer],
+  );
 
   // Board fullscreen — when on, the board covers the whole browser window
   // (sidebar + header are hidden) and we also request native browser
@@ -1327,6 +1373,8 @@ export default function AppView() {
             onSetRemindDate={handleSetRemindDate}
             notifiedIds={notifiedIds}
             onToggleNotification={toggleNotification}
+            runningTimerId={runningTimerId}
+            onTimerToggle={handleTimerToggle}
           />
         ) : (
           <ListView
@@ -1347,6 +1395,8 @@ export default function AppView() {
             onNoteBlur={handleNoteBlur}
             notifiedIds={notifiedIds}
             onToggleNotification={toggleNotification}
+            runningTimerId={runningTimerId}
+            onTimerToggle={handleTimerToggle}
           />
         )}
         {noteModalFor !== null && noteModalNote && (
@@ -1372,6 +1422,7 @@ type ListTask = {
   note: string;
   position: number;
   createdAt?: string;
+  elapsedSeconds?: number;
 };
 
 function ListView({
@@ -1390,6 +1441,8 @@ function ListView({
   onNoteBlur,
   notifiedIds,
   onToggleNotification,
+  runningTimerId,
+  onTimerToggle,
 }: {
   tasks: ListTask[];
   trimmedQuery: string;
@@ -1406,6 +1459,8 @@ function ListView({
   onNoteBlur: (id: number, val: string) => void;
   notifiedIds?: Set<number>;
   onToggleNotification?: (id: number) => void;
+  runningTimerId?: number | null;
+  onTimerToggle?: (taskId: number, savedSeconds: number) => void;
 }) {
   return (
     <div
@@ -1426,6 +1481,8 @@ function ListView({
           const noteValue = comments[task.id] ?? task.note ?? "";
           const editingNote = editingNoteFor === task.id;
           const priority = isPriorityTitle(task.text);
+          const isRunning = runningTimerId === task.id;
+          const elapsedSecs = liveElapsedSeconds(task.id, task.elapsedSeconds ?? 0);
 
           return (
             <div
@@ -1507,9 +1564,30 @@ function ListView({
                           task.text
                         )}
                       </p>
+                      {(elapsedSecs > 0 || isRunning) && (
+                        <div className={`mt-1 flex items-center gap-1 text-[11px] font-mono ${isRunning ? "text-emerald-600" : "text-[#9A9279]"}`}>
+                          <Timer size={11} />
+                          {formatDuration(elapsedSecs)}
+                          {isRunning && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                        </div>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <div className={`flex items-center gap-0.5 transition-opacity shrink-0 ${isRunning ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+                      {!task.completed && !isSubmitted && onTimerToggle && (
+                        <button
+                          type="button"
+                          onClick={() => onTimerToggle(task.id, task.elapsedSeconds ?? 0)}
+                          className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors ${
+                            isRunning
+                              ? "text-emerald-600 hover:bg-emerald-50"
+                              : "text-[#9A9279] hover:bg-[#F4ECD8]"
+                          }`}
+                          title={isRunning ? "Pause timer" : elapsedSecs > 0 ? `Timer: ${formatDuration(elapsedSecs)} — click to resume` : "Start timer"}
+                        >
+                          {isRunning ? <Pause size={14} /> : <Play size={14} />}
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() =>

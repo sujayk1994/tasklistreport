@@ -23,6 +23,7 @@ export const tasksTable = pgTable("tasks", {
   postedForFuture: boolean("posted_for_future").notNull().default(false),
   remindDate: text("remind_date"),
   source: text("source").notNull().default("user"),
+  elapsedSeconds: integer("elapsed_seconds").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

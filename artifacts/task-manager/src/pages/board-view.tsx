@@ -24,9 +24,13 @@ import {
   Pencil,
   Bell,
   BellOff,
+  Play,
+  Pause,
+  Timer,
 } from "lucide-react";
 import { HighlightedText } from "@/lib/highlight";
 import { NoteModal } from "@/components/NoteModal";
+import { liveElapsedSeconds, formatDuration } from "@/lib/taskTimer";
 
 export type BoardTask = {
   id: number;
@@ -35,6 +39,7 @@ export type BoardTask = {
   note: string;
   position: number;
   createdAt?: string;
+  elapsedSeconds?: number;
   // Notes the user has dragged into the "Posted for Future" folder. They are
   // hidden from the live board, surfaced in their own pinned panel, included
   // in the daily email report, and intentionally NOT carried into tomorrow.
@@ -519,6 +524,9 @@ type Props = {
   // Per-task notification bell.
   notifiedIds?: Set<number>;
   onToggleNotification?: (taskId: number) => void;
+  // Task timer.
+  runningTimerId?: number | null;
+  onTimerToggle?: (taskId: number, savedSeconds: number) => void;
 };
 
 export function BoardView({
@@ -544,6 +552,8 @@ export function BoardView({
   onSetRemindDate,
   notifiedIds,
   onToggleNotification,
+  runningTimerId,
+  onTimerToggle,
 }: Props) {
   const [tags, setTags] = useState<TagDef[]>(() => loadTags());
   const [positions, setPositions] = useState<Record<string, Pos>>(() => loadPositions());
@@ -1963,6 +1973,29 @@ export function BoardView({
                     >
                       <Copy size={11} /> Copy
                     </button>
+                    {!task.completed && !isSubmitted && onTimerToggle && (() => {
+                      const isRunning = runningTimerId === task.id;
+                      const elapsed = liveElapsedSeconds(task.id, task.elapsedSeconds ?? 0);
+                      return (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onTimerToggle(task.id, task.elapsedSeconds ?? 0);
+                          }}
+                          className={`flex items-center gap-1 text-[10.5px] font-medium px-1.5 py-0.5 rounded transition-colors ${
+                            isRunning
+                              ? "text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100"
+                              : "hover:bg-white/70"
+                          }`}
+                          title={isRunning ? "Pause timer" : elapsed > 0 ? `Timer: ${formatDuration(elapsed)} — click to resume` : "Start timer"}
+                        >
+                          {isRunning ? <Pause size={10} /> : <Play size={10} />}
+                          {elapsed > 0 ? formatDuration(elapsed) : isRunning ? "0:00" : "Timer"}
+                          {isRunning && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                        </button>
+                      );
+                    })()}
                     {!task.completed && onToggleNotification && (
                       <button
                         type="button"

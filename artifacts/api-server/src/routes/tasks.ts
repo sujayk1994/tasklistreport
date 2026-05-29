@@ -30,6 +30,7 @@ function serializeTask(t: DbTask) {
     postedForFuture: t.postedForFuture,
     remindDate: t.remindDate ?? null,
     source: t.source ?? "user",
+    elapsedSeconds: t.elapsedSeconds ?? 0,
     createdAt: t.createdAt.toISOString(),
   };
 }
@@ -440,6 +441,51 @@ router.patch("/tasks/today/text", requireAuth, async (req, res) => {
   const [updated] = await db
     .update(tasksTable)
     .set({ text: trimmed })
+    .where(eq(tasksTable.id, taskId))
+    .returning();
+
+  res.json(serializeTask(updated));
+});
+
+router.patch("/tasks/today/timer", requireAuth, async (req, res) => {
+  const userId = getUserId(req);
+  const { taskId, elapsedSeconds } = req.body as { taskId?: unknown; elapsedSeconds?: unknown };
+  const today = getLocalDateString();
+
+  if (typeof taskId !== "number" || !Number.isInteger(taskId) || taskId <= 0) {
+    res.status(400).json({ error: "Invalid taskId." });
+    return;
+  }
+  if (typeof elapsedSeconds !== "number" || !Number.isInteger(elapsedSeconds) || elapsedSeconds < 0) {
+    res.status(400).json({ error: "elapsedSeconds must be a non-negative integer." });
+    return;
+  }
+
+  const [taskList] = await db
+    .select()
+    .from(taskListsTable)
+    .where(and(eq(taskListsTable.userId, userId), eq(taskListsTable.date, today)))
+    .limit(1);
+
+  if (!taskList) {
+    res.status(404).json({ error: "No task list for today." });
+    return;
+  }
+
+  const [task] = await db
+    .select()
+    .from(tasksTable)
+    .where(and(eq(tasksTable.id, taskId), eq(tasksTable.taskListId, taskList.id)))
+    .limit(1);
+
+  if (!task) {
+    res.status(404).json({ error: "Task not found." });
+    return;
+  }
+
+  const [updated] = await db
+    .update(tasksTable)
+    .set({ elapsedSeconds })
     .where(eq(tasksTable.id, taskId))
     .returning();
 

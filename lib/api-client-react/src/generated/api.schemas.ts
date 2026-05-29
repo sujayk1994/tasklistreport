@@ -21,6 +21,8 @@ export interface Task {
   createdAt: string;
   /** 'inbox' for email-created tasks, 'user' for manually created ones. */
   source: string;
+  /** Total seconds logged on this task via the built-in timer. */
+  elapsedSeconds: number;
 }
 
 export interface TaskList {
@@ -52,6 +54,11 @@ export interface UpdateTaskNoteBody {
 export interface UpdateTaskTextBody {
   taskId: number;
   text: string;
+}
+
+export interface UpdateTaskTimerBody {
+  taskId: number;
+  elapsedSeconds: number;
 }
 
 export interface SetPostedForFutureBody {

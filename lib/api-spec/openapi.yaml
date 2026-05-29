@@ -248,6 +248,31 @@ paths:
         "404":
           description: Not found
 
+  /tasks/today/timer:
+    patch:
+      operationId: updateTaskTimer
+      tags: [tasks]
+      summary: Save elapsed seconds for a task
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTaskTimerBody"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Task not found
+
   /tasks/today/test-email:
     post:
       operationId: sendTestEmail
@@ -434,6 +459,9 @@ components:
         source:
           type: string
           description: "'inbox' for email-created tasks, 'user' for manually created ones."
+        elapsedSeconds:
+          type: integer
+          description: Total seconds logged on this task via the built-in timer.
       required:
         - id
         - text
@@ -443,6 +471,7 @@ components:
         - postedForFuture
         - createdAt
         - source
+        - elapsedSeconds
 
     TaskList:
       type: object
@@ -514,6 +543,17 @@ components:
       required:
         - taskId
         - text
+
+    UpdateTaskTimerBody:
+      type: object
+      properties:
+        taskId:
+          type: integer
+        elapsedSeconds:
+          type: integer
+      required:
+        - taskId
+        - elapsedSeconds
 
     SetPostedForFutureBody:
       type: object
