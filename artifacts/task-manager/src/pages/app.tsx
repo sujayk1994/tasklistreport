@@ -234,8 +234,8 @@ export default function AppView() {
         updateTaskTimer.mutate({ data: { taskId, elapsedSeconds: total } });
       } else {
         if (runningTimerId !== null) {
-          const tasks = (taskList?.tasks ?? []) as Array<{ id: number; elapsedSeconds?: number }>;
-          const prev = tasks.find((t) => t.id === runningTimerId);
+          const currentData = queryClient.getQueryData(getGetTodayTasksQueryKey()) as { tasks?: Array<{ id: number; elapsedSeconds?: number }> } | undefined;
+          const prev = (currentData?.tasks ?? []).find((t) => t.id === runningTimerId);
           const prevTotal = liveElapsedSeconds(runningTimerId, prev?.elapsedSeconds ?? 0);
           clearRunningTimer();
           updateTaskTimer.mutate({ data: { taskId: runningTimerId, elapsedSeconds: prevTotal } });
@@ -244,7 +244,7 @@ export default function AppView() {
         setRunningTimerId(taskId);
       }
     },
-    [runningTimerId, taskList, updateTaskTimer],
+    [runningTimerId, queryClient, updateTaskTimer],
   );
 
   // Board fullscreen — when on, the board covers the whole browser window

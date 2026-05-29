@@ -1662,7 +1662,7 @@ export function BoardView({
                             onChange={(e) => {
                               const date = e.target.value;
                               if (date) {
-                                onSetRemindDate(task.id, date);
+                                onSetRemindDate?.(task.id, date);
                                 if (onSetPostedForFuture) onSetPostedForFuture(task.id, true);
                                 setOpenCalendarFor(null);
                               }
@@ -1674,7 +1674,7 @@ export function BoardView({
                               onMouseDown={(e) => e.stopPropagation()}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onSetRemindDate(task.id, null);
+                                onSetRemindDate?.(task.id, null);
                                 setOpenCalendarFor(null);
                               }}
                               className="w-full text-center text-[11px] px-2 py-1 rounded hover:bg-[#FBF5E5] text-[#7A6F58]"
