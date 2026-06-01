@@ -359,12 +359,10 @@ export default function AppView() {
     });
   }, [taskList]);
 
-  // Auto-activate the reminder bell for any incomplete priority/urgent task on first load.
-  const autoNotifyPriorityRef = useRef(false);
+  // Reactively keep priority/urgent tasks in the notified set — fires whenever
+  // any task text changes (e.g. ⚡ button adds "urgent"), not just on first load.
   useEffect(() => {
-    if (autoNotifyPriorityRef.current) return;
     if (!taskList?.tasks) return;
-    autoNotifyPriorityRef.current = true;
     const ids = (taskList.tasks as Array<{ id: number; text: string; completed: boolean }>)
       .filter((t) => !t.completed && isPriorityTitle(t.text))
       .map((t) => t.id);
@@ -1632,28 +1630,31 @@ function ListView({
                       >
                         <Copy size={14} />
                       </button>
-                      {!task.completed && onToggleNotification && (
-                        <button
-                          type="button"
-                          onClick={() => onToggleNotification(task.id)}
-                          className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors ${
-                            notifiedIds?.has(task.id)
-                              ? "text-amber-500 hover:bg-amber-50"
-                              : "text-[#9A9279] hover:bg-[#F4ECD8]"
-                          }`}
-                          title={
-                            notifiedIds?.has(task.id)
-                              ? "Reminder active — click to remove (notifying every 30 min after 8 PM IST)"
-                              : "Set reminder: notify every 30 min after 8 PM IST until done"
-                          }
-                        >
-                          {notifiedIds?.has(task.id) ? (
-                            <Bell size={14} className="fill-amber-400" />
-                          ) : (
-                            <BellOff size={14} />
-                          )}
-                        </button>
-                      )}
+                      {!task.completed && onToggleNotification && (() => {
+                        const bellActive = !!(notifiedIds?.has(task.id) || isPriorityTitle(task.text));
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => onToggleNotification(task.id)}
+                            className={`flex items-center justify-center w-7 h-7 rounded-md transition-colors ${
+                              bellActive
+                                ? "text-amber-500 hover:bg-amber-50"
+                                : "text-[#9A9279] hover:bg-[#F4ECD8]"
+                            }`}
+                            title={
+                              bellActive
+                                ? "Reminder active — click to toggle off"
+                                : "Set reminder: notify every 30 min after 8 PM IST until done"
+                            }
+                          >
+                            {bellActive ? (
+                              <Bell size={14} className="fill-amber-400" />
+                            ) : (
+                              <BellOff size={14} />
+                            )}
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
 

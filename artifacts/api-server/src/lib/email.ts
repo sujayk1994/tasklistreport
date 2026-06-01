@@ -133,6 +133,8 @@ export function renderDailyReportHtml(
   const safeDate = escapeHtml(date);
   const safeUserName = escapeHtml(userName);
 
+  const isPriority = (text: string) => /\b(urgent|priority)\b/i.test(text);
+
   const renderRow = (
     t: DailyReportTask,
     icon: string,
@@ -141,10 +143,16 @@ export function renderDailyReportHtml(
     noteColor: string,
   ) => {
     const dur = formatDuration(t.elapsedSeconds ?? 0);
+    const priorityTask = isPriority(t.text);
+    const rowBg = priorityTask ? "background:#fff8f0;" : "";
+    const textFinal = priorityTask
+      ? `font-weight:700;color:#b91c1c;${textStyle.includes("line-through") ? "text-decoration:line-through;" : ""}`
+      : textStyle;
     return (
-      `<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">` +
+      `<tr style="${rowBg}"><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;${priorityTask ? "border-left:3px solid #DC2626;" : ""}">` +
       `<span style="color:${iconColor};margin-right:10px;">${icon}</span>` +
-      `<span style="${textStyle}">${escapeHtml(t.text)}</span>` +
+      (priorityTask ? `<span style="margin-right:6px;font-size:13px;">&#9889;</span>` : "") +
+      `<span style="${textFinal}">${escapeHtml(t.text)}</span>` +
       (dur
         ? `<span style="margin-left:8px;font-size:11px;color:#64748b;background:#f1f5f9;border-radius:4px;padding:1px 6px;">&#9201; ${escapeHtml(dur)}</span>`
         : "") +

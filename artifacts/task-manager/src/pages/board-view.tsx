@@ -1698,6 +1698,10 @@ export function BoardView({
                               if (cleaned) onTextChange(task.id, cleaned);
                             } else {
                               onTextChange(task.id, `urgent ${task.text}`);
+                              // Also activate the reminder bell when marking priority.
+                              if (!notifiedIds?.has(task.id)) {
+                                onToggleNotification?.(task.id);
+                              }
                             }
                           }}
                           title={priority ? "Remove priority flag" : "Mark as priority (urgent)"}
@@ -2086,34 +2090,33 @@ export function BoardView({
                         </button>
                       );
                     })()}
-                    {!task.completed && onToggleNotification && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onToggleNotification(task.id);
-                        }}
-                        className={`flex items-center gap-1 text-[10.5px] font-medium px-1.5 py-0.5 rounded hover:bg-white/70 transition-colors ${
-                          notifiedIds?.has(task.id)
-                            ? "text-amber-600"
-                            : "text-[#9A9279]"
-                        }`}
-                        title={
-                          notifiedIds?.has(task.id)
-                            ? "Reminder active — click to remove (notifying every 30 min after 8 PM IST)"
-                            : priority
-                            ? "Auto-remind active for priority task — click to disable"
-                            : "Set reminder: notify every 30 min after 8 PM IST until done"
-                        }
-                      >
-                        {notifiedIds?.has(task.id) ? (
-                          <Bell size={11} className="fill-amber-400" />
-                        ) : (
-                          <BellOff size={11} />
-                        )}
-                        {notifiedIds?.has(task.id) ? "Active" : "Remind"}
-                      </button>
-                    )}
+                    {!task.completed && onToggleNotification && (() => {
+                      const bellActive = !!(notifiedIds?.has(task.id) || priority);
+                      return (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleNotification(task.id);
+                          }}
+                          className={`flex items-center gap-1 text-[10.5px] font-medium px-1.5 py-0.5 rounded hover:bg-white/70 transition-colors ${
+                            bellActive ? "text-amber-600" : "text-[#9A9279]"
+                          }`}
+                          title={
+                            bellActive
+                              ? "Reminder active — click to toggle off"
+                              : "Set reminder: notify every 30 min after 8 PM IST until done"
+                          }
+                        >
+                          {bellActive ? (
+                            <Bell size={11} className="fill-amber-400" />
+                          ) : (
+                            <BellOff size={11} />
+                          )}
+                          {bellActive ? "Active" : "Remind"}
+                        </button>
+                      );
+                    })()}
                   </div>
 
                   <div
