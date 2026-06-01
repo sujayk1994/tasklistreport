@@ -1206,6 +1206,17 @@ export function BoardView({
     }
   };
 
+  // Auto-tidy once on first load, as soon as the board has a real width and
+  // at least one task is available.
+  const autoTidiedRef = useRef(false);
+  useEffect(() => {
+    if (autoTidiedRef.current) return;
+    if (boardWidth <= 0 || tasks.length === 0) return;
+    autoTidiedRef.current = true;
+    tidyBoard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardWidth, tasks]);
+
   // Allow the parent (app.tsx) to trigger Tidy from a keyboard shortcut by
   // bumping a counter. We skip the very first run so just mounting doesn't
   // shuffle the user's saved layout.
