@@ -96,7 +96,18 @@ export type DailyReportTask = {
   completed: boolean;
   note: string;
   postedForFuture?: boolean;
+  elapsedSeconds?: number;
 };
+
+function formatDuration(totalSeconds: number): string {
+  if (!totalSeconds || totalSeconds <= 0) return "";
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2, "0")}m`;
+  if (m > 0) return `${m}m ${String(s).padStart(2, "0")}s`;
+  return `${s}s`;
+}
 
 export type SendDailyReportOptions = {
   /** Marks the email subject + body as a TEST so recipients can tell it
@@ -128,14 +139,21 @@ export function renderDailyReportHtml(
     iconColor: string,
     textStyle: string,
     noteColor: string,
-  ) =>
-    `<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">` +
-    `<span style="color:${iconColor};margin-right:10px;">${icon}</span>` +
-    `<span style="${textStyle}">${escapeHtml(t.text)}</span>` +
-    (t.note
-      ? `<div style="margin:4px 0 0 22px;font-size:12px;color:${noteColor};">${escapeHtml(t.note)}</div>`
-      : "") +
-    `</td></tr>`;
+  ) => {
+    const dur = formatDuration(t.elapsedSeconds ?? 0);
+    return (
+      `<tr><td style="padding:8px 12px;border-bottom:1px solid #f0f0f0;">` +
+      `<span style="color:${iconColor};margin-right:10px;">${icon}</span>` +
+      `<span style="${textStyle}">${escapeHtml(t.text)}</span>` +
+      (dur
+        ? `<span style="margin-left:8px;font-size:11px;color:#64748b;background:#f1f5f9;border-radius:4px;padding:1px 6px;">&#9201; ${escapeHtml(dur)}</span>`
+        : "") +
+      (t.note
+        ? `<div style="margin:4px 0 0 22px;font-size:12px;color:${noteColor};">${escapeHtml(t.note)}</div>`
+        : "") +
+      `</td></tr>`
+    );
+  };
 
   const completedRows = completedTasks
     .map((t) =>

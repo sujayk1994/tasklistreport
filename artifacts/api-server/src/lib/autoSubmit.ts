@@ -90,6 +90,7 @@ async function runAutoSubmit(): Promise<void> {
           completed: t.completed,
           note: t.note ?? "",
           postedForFuture: t.postedForFuture,
+          elapsedSeconds: t.elapsedSeconds ?? 0,
         })),
         taskList.userId,
       );

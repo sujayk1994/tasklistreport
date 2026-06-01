@@ -1630,16 +1630,6 @@ function ListView({
                           )}
                         </button>
                       )}
-                      {!isSubmitted && (
-                        <button
-                          type="button"
-                          onClick={() => onDelete(task.id)}
-                          className="flex items-center justify-center w-7 h-7 rounded-md text-[#9A9279] hover:bg-rose-50 hover:text-rose-700"
-                          title="Remove task"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
                     </div>
                   </div>
 

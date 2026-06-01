@@ -1814,7 +1814,7 @@ export function BoardView({
                       </div>
                     ) : (
                       <h3
-                        className={`text-[15px] font-semibold leading-snug tracking-tight min-w-0 flex-1 break-words ${
+                        className={`select-text text-[15px] font-semibold leading-snug tracking-tight min-w-0 flex-1 break-words ${
                           isSubmitted || !onTextChange ? "" : "cursor-text hover:bg-white/40 rounded-md px-1 -mx-1"
                         }`}
                         style={{
@@ -1834,9 +1834,9 @@ export function BoardView({
                           setEditingTextFor(task.id);
                         }}
                         onMouseDown={(e) => {
-                          // Prevent the parent's drag handler from grabbing
-                          // the title — otherwise the text isn't selectable.
-                          if (!isSubmitted && onTextChange) e.stopPropagation();
+                          // Always stop propagation so the drag handler
+                          // doesn't interrupt text selection on the title.
+                          e.stopPropagation();
                         }}
                       >
                         {task.completed ? (
@@ -2020,19 +2020,6 @@ export function BoardView({
                           <BellOff size={11} />
                         )}
                         {notifiedIds?.has(task.id) ? "Active" : "Remind"}
-                      </button>
-                    )}
-                    {!isSubmitted && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDelete(task.id);
-                        }}
-                        className="flex items-center gap-1 text-[10.5px] font-medium px-1.5 py-0.5 rounded hover:bg-white/70 text-[#7A1B1B]"
-                        title="Delete task"
-                      >
-                        <Trash2 size={11} /> Delete
                       </button>
                     )}
                   </div>

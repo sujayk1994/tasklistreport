@@ -638,6 +638,7 @@ router.post("/tasks/today/test-email", requireAuth, async (req, res) => {
         completed: t.completed,
         note: t.note ?? "",
         postedForFuture: t.postedForFuture,
+        elapsedSeconds: t.elapsedSeconds ?? 0,
       })),
       userId,
       { test: true },
@@ -751,6 +752,7 @@ router.post("/tasks/today/submit", requireAuth, async (req, res) => {
         completed: t.completed,
         note: t.note ?? "",
         postedForFuture: t.postedForFuture,
+        elapsedSeconds: t.elapsedSeconds ?? 0,
       })),
       userId,
     );
@@ -809,6 +811,7 @@ router.post("/tasks/today/submit-and-download", requireAuth, async (req, res) =>
       completed: t.completed,
       note: t.note ?? "",
       postedForFuture: t.postedForFuture,
+      elapsedSeconds: t.elapsedSeconds ?? 0,
     })),
     userId,
   );
