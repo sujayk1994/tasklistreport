@@ -527,6 +527,8 @@ type Props = {
   // Task timer.
   runningTimerId?: number | null;
   onTimerToggle?: (taskId: number, savedSeconds: number) => void;
+  // Open the Add-task drawer (e.g. from double-clicking the board background).
+  onOpenAddPanel?: () => void;
 };
 
 export function BoardView({
@@ -554,6 +556,7 @@ export function BoardView({
   onToggleNotification,
   runningTimerId,
   onTimerToggle,
+  onOpenAddPanel,
 }: Props) {
   const [tags, setTags] = useState<TagDef[]>(() => loadTags());
   const [positions, setPositions] = useState<Record<string, Pos>>(() => loadPositions());
@@ -1274,6 +1277,16 @@ export function BoardView({
     });
   };
 
+  const recolorTag = (tagId: string, palette: typeof PALETTE[number]) => {
+    setTags((prev) =>
+      prev.map((t) =>
+        t.id === tagId
+          ? { ...t, swatch: palette.swatch, paper: palette.paper, ink: palette.ink, border: palette.border, ribbon: palette.ribbon, glow: palette.glow }
+          : t,
+      ),
+    );
+  };
+
   return (
     <div
       className={`flex-1 min-h-0 flex flex-col rounded-3xl border overflow-hidden shadow-[0_30px_80px_-50px_rgba(31,27,20,0.45)] ${
@@ -1456,6 +1469,40 @@ export function BoardView({
               Add
             </button>
           </div>
+
+          {tags.length > 0 && (
+            <div className="mt-4 border-t border-[#E2DBC6] pt-3">
+              <div className="text-xs font-semibold text-[#1F1B14] mb-2">Change tag color</div>
+              <div className="flex flex-col gap-2">
+                {tags.map((tag) => (
+                  <div key={tag.id} className="flex items-center gap-3">
+                    <span
+                      className="w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ background: tag.swatch }}
+                    />
+                    <span className="text-xs text-[#1F1B14] w-28 truncate">{tag.name}</span>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {PALETTE.map((p) => (
+                        <button
+                          key={p.swatch}
+                          type="button"
+                          onClick={() => recolorTag(tag.id, p)}
+                          className="w-5 h-5 rounded-full flex items-center justify-center border-2 transition-transform hover:scale-110"
+                          style={{
+                            background: p.swatch,
+                            borderColor: tag.swatch === p.swatch ? "#1F1B14" : "transparent",
+                          }}
+                          title={`Set color to ${p.swatch}`}
+                        >
+                          {tag.swatch === p.swatch && <Check size={9} className="text-white" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1489,6 +1536,11 @@ export function BoardView({
                 }
                 return Math.max(560, maxY + NOTE_H + 120);
               })(),
+            }}
+            onDoubleClick={(e) => {
+              // Only fire when clicking the board background, not on a note.
+              if (e.target !== e.currentTarget) return;
+              if (!isSubmitted) onOpenAddPanel?.();
             }}
           >
             {/* Empty / no-results state */}
@@ -1632,6 +1684,33 @@ export function BoardView({
                           <Zap size={10} /> Priority
                         </span>
                       )}
+                      {!isSubmitted && onTextChange && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isPriorityTitle(task.text)) {
+                              const cleaned = task.text
+                                .replace(/\b(urgent|priority)\b[:\s]*/gi, "")
+                                .trim()
+                                .replace(/\s+/g, " ");
+                              if (cleaned) onTextChange(task.id, cleaned);
+                            } else {
+                              onTextChange(task.id, `urgent ${task.text}`);
+                            }
+                          }}
+                          title={priority ? "Remove priority flag" : "Mark as priority (urgent)"}
+                          className="text-[10px] uppercase tracking-[0.12em] font-semibold pl-1.5 pr-1.5 py-0.5 rounded inline-flex items-center gap-1 hover:brightness-95"
+                          style={{
+                            background: priority ? "rgba(220,38,38,0.18)" : "rgba(255,255,255,0.45)",
+                            color: priority ? "#DC2626" : tag.ink,
+                            opacity: priority ? 1 : 0.65,
+                          }}
+                        >
+                          <Zap size={11} fill={priority ? "#DC2626" : "none"} />
+                        </button>
+                      )}
                       {!isSubmitted && onSetRemindDate && (
                         <button
                           type="button"
@@ -1640,7 +1719,7 @@ export function BoardView({
                             e.stopPropagation();
                             setOpenCalendarFor((cur) => (cur === task.id ? null : task.id));
                           }}
-                          title={task.remindDate ? `Scheduled: ${task.remindDate}` : "Schedule for a future date"}
+                          title={task.remindDate ? `Scheduled for ${task.remindDate} — click to change` : "Schedule for a future date"}
                           className="text-[10px] uppercase tracking-[0.12em] font-semibold pl-1.5 pr-1.5 py-0.5 rounded inline-flex items-center gap-1 hover:brightness-95"
                           style={{
                             background: task.remindDate ? "rgba(59,130,246,0.22)" : "rgba(255,255,255,0.45)",
@@ -2021,8 +2100,10 @@ export function BoardView({
                         }`}
                         title={
                           notifiedIds?.has(task.id)
-                            ? "Remove reminder (notifying every 30 min after 8 PM)"
-                            : "Remind me every 30 min after 8 PM IST"
+                            ? "Reminder active — click to remove (notifying every 30 min after 8 PM IST)"
+                            : priority
+                            ? "Auto-remind active for priority task — click to disable"
+                            : "Set reminder: notify every 30 min after 8 PM IST until done"
                         }
                       >
                         {notifiedIds?.has(task.id) ? (

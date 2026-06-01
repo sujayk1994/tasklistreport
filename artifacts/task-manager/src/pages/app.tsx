@@ -359,6 +359,26 @@ export default function AppView() {
     });
   }, [taskList]);
 
+  // Auto-activate the reminder bell for any incomplete priority/urgent task on first load.
+  const autoNotifyPriorityRef = useRef(false);
+  useEffect(() => {
+    if (autoNotifyPriorityRef.current) return;
+    if (!taskList?.tasks) return;
+    autoNotifyPriorityRef.current = true;
+    const ids = (taskList.tasks as Array<{ id: number; text: string; completed: boolean }>)
+      .filter((t) => !t.completed && isPriorityTitle(t.text))
+      .map((t) => t.id);
+    if (ids.length === 0) return;
+    setNotifiedIdsState((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      ids.forEach((id) => { if (!next.has(id)) { next.add(id); changed = true; } });
+      if (!changed) return prev;
+      setNotifiedIds(next);
+      return next;
+    });
+  }, [taskList?.tasks]);
+
   // Scheduler: tick every 60s, fire once per 30-min window after 8 PM IST.
   useEffect(() => {
     const tick = () => {
@@ -1375,6 +1395,10 @@ export default function AppView() {
             onToggleNotification={toggleNotification}
             runningTimerId={runningTimerId}
             onTimerToggle={handleTimerToggle}
+            onOpenAddPanel={() => {
+              setShowAddPanel(true);
+              setTimeout(() => addTextRef.current?.focus(), 30);
+            }}
           />
         ) : (
           <ListView
