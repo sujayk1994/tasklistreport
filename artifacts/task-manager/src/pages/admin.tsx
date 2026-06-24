@@ -1439,8 +1439,9 @@ type PendingAddress = {
 type ProjectTrackerRow = {
   magazine: string;
   project: string;
-  reprintReceiptDate: string;
   onlineDate: string;
+  source: "email" | "manual";
+  manualId: number | null;
   reprintDone: boolean;
   reprintDoneDate: string | null;
   tmDone: boolean;
@@ -1727,14 +1728,53 @@ function PrintQueueTab() {
 }
 
 function ProjectTrackerTab() {
+  const qc = useQueryClient();
   const { data, isLoading, refetch, isFetching } = useQuery<{ rows: ProjectTrackerRow[] }>({
     queryKey: ["admin-project-tracker"],
     queryFn: async () => {
-      const r = await fetch("/api/admin/project-tracker");
+      const r = await fetch("/api/admin/project-tracker", { credentials: "include" });
       if (!r.ok) throw new Error("Failed to load project tracker");
       return r.json();
     },
     refetchInterval: 120_000,
+  });
+
+  const markReprintMutation = useMutation({
+    mutationFn: async (row: ProjectTrackerRow) => {
+      if (row.source === "manual" && row.manualId != null) {
+        const r = await fetch(`/api/admin/manual-projects/${row.manualId}/mark-reprint-done`, {
+          method: "PATCH", credentials: "include",
+        });
+        if (!r.ok) throw new Error("Failed");
+      } else {
+        const r = await fetch("/api/admin/project-tracker/mark-reprint-done", {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ magazine: row.magazine, project: row.project }),
+        });
+        if (!r.ok) throw new Error("Failed");
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-project-tracker"] }),
+  });
+
+  const markTwitterMutation = useMutation({
+    mutationFn: async (row: ProjectTrackerRow) => {
+      if (row.source === "manual" && row.manualId != null) {
+        const r = await fetch(`/api/admin/manual-projects/${row.manualId}/mark-twitter-done`, {
+          method: "PATCH", credentials: "include",
+        });
+        if (!r.ok) throw new Error("Failed");
+      } else {
+        const r = await fetch("/api/admin/project-tracker/mark-twitter-done", {
+          method: "POST", credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ magazine: row.magazine, project: row.project }),
+        });
+        if (!r.ok) throw new Error("Failed");
+      }
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-project-tracker"] }),
   });
 
   function fmtDate(iso: string | null) {
@@ -1746,7 +1786,9 @@ function ProjectTrackerTab() {
     });
   }
 
-  const DoneCell = ({ done, date }: { done: boolean; date: string | null }) => (
+  const DoneCell = ({ done, date, onMark, pending }: {
+    done: boolean; date: string | null; onMark?: () => void; pending?: boolean;
+  }) => (
     <div className="flex flex-col gap-0.5">
       <Badge
         className={
@@ -1760,6 +1802,15 @@ function ProjectTrackerTab() {
       </Badge>
       {done && date && (
         <span className="text-[10px] text-muted-foreground">{fmtDate(date)}</span>
+      )}
+      {!done && onMark && (
+        <button
+          className="text-[10px] text-primary underline underline-offset-2 hover:opacity-70 disabled:opacity-40 text-left w-fit mt-0.5"
+          disabled={pending}
+          onClick={onMark}
+        >
+          {pending ? "Saving…" : "Mark done"}
+        </button>
       )}
     </div>
   );
@@ -1828,10 +1879,20 @@ function ProjectTrackerTab() {
                     </div>
                   </td>
                   <td className="px-3 py-3">
-                    <DoneCell done={row.reprintDone} date={row.reprintDoneDate} />
+                    <DoneCell
+                      done={row.reprintDone}
+                      date={row.reprintDoneDate}
+                      onMark={() => markReprintMutation.mutate(row)}
+                      pending={markReprintMutation.isPending}
+                    />
                   </td>
                   <td className="px-3 py-3">
-                    <DoneCell done={row.tmDone} date={row.tmDoneDate} />
+                    <DoneCell
+                      done={row.tmDone}
+                      date={row.tmDoneDate}
+                      onMark={row.reprintDone ? () => markTwitterMutation.mutate(row) : undefined}
+                      pending={markTwitterMutation.isPending}
+                    />
                   </td>
                   <td className="px-3 py-3">
                     <DoneCell done={row.addressDone} date={row.addressDoneDate} />
@@ -1917,6 +1978,32 @@ function ManualProjectsTab() {
     onSuccess: (result) => {
       qc.invalidateQueries({ queryKey: ["admin-manual-projects"] });
       setBulkResult(result);
+    },
+  });
+
+  const markReprintDoneMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/admin/manual-projects/${id}/mark-reprint-done`, {
+        method: "PATCH", credentials: "include",
+      });
+      if (!r.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-manual-projects"] });
+      qc.invalidateQueries({ queryKey: ["admin-project-tracker"] });
+    },
+  });
+
+  const markTwitterDoneMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const r = await fetch(`/api/admin/manual-projects/${id}/mark-twitter-done`, {
+        method: "PATCH", credentials: "include",
+      });
+      if (!r.ok) throw new Error("Failed");
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-manual-projects"] });
+      qc.invalidateQueries({ queryKey: ["admin-project-tracker"] });
     },
   });
 
@@ -2142,6 +2229,15 @@ function ManualProjectsTab() {
                           <span className="text-[10px] text-muted-foreground">
                             {proj.reprintCompletedAt ? fmt(proj.reprintCompletedAt) : `created ${fmt(proj.reprintTaskCreatedAt)}`}
                           </span>
+                          {!proj.reprintCompletedAt && (
+                            <button
+                              className="text-[10px] text-primary underline underline-offset-2 hover:opacity-70 disabled:opacity-40 text-left w-fit mt-0.5"
+                              disabled={markReprintDoneMutation.isPending}
+                              onClick={() => markReprintDoneMutation.mutate(proj.id)}
+                            >
+                              {markReprintDoneMutation.isPending ? "Saving…" : "Mark done"}
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <div className="flex flex-col gap-0.5">
@@ -2149,6 +2245,13 @@ function ManualProjectsTab() {
                             <Clock size={10} /> Pending
                           </Badge>
                           <span className="text-[10px] text-muted-foreground">auto in 2d</span>
+                          <button
+                            className="text-[10px] text-primary underline underline-offset-2 hover:opacity-70 disabled:opacity-40 text-left w-fit mt-0.5"
+                            disabled={markReprintDoneMutation.isPending}
+                            onClick={() => markReprintDoneMutation.mutate(proj.id)}
+                          >
+                            {markReprintDoneMutation.isPending ? "Saving…" : "Mark done"}
+                          </button>
                         </div>
                       )}
                     </td>
@@ -2168,11 +2271,29 @@ function ManualProjectsTab() {
                             <Clock size={10} /> Pending
                           </Badge>
                           <span className="text-[10px] text-muted-foreground">auto in 2d</span>
+                          <button
+                            className="text-[10px] text-primary underline underline-offset-2 hover:opacity-70 disabled:opacity-40 text-left w-fit mt-0.5"
+                            disabled={markTwitterDoneMutation.isPending}
+                            onClick={() => markTwitterDoneMutation.mutate(proj.id)}
+                          >
+                            {markTwitterDoneMutation.isPending ? "Saving…" : "Mark done"}
+                          </button>
                         </div>
                       ) : (
-                        <Badge className="bg-slate-100 text-slate-500 border-slate-200 gap-1 w-fit">
-                          <Clock size={10} /> Waiting
-                        </Badge>
+                        <div className="flex flex-col gap-0.5">
+                          <Badge className="bg-slate-100 text-slate-500 border-slate-200 gap-1 w-fit">
+                            <Clock size={10} /> Waiting
+                          </Badge>
+                          {proj.reprintCompletedAt && (
+                            <button
+                              className="text-[10px] text-primary underline underline-offset-2 hover:opacity-70 disabled:opacity-40 text-left w-fit mt-0.5"
+                              disabled={markTwitterDoneMutation.isPending}
+                              onClick={() => markTwitterDoneMutation.mutate(proj.id)}
+                            >
+                              {markTwitterDoneMutation.isPending ? "Saving…" : "Mark done"}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </td>
 

@@ -893,38 +893,73 @@ function subtractWorkingDays(date: Date, days: number): Date {
 }
 
 router.get("/admin/project-tracker", requireAuth, requireAdmin, async (req, res) => {
-  const [reprintReceipts, reprintCompletions, tmCompletions, addressReceipts, printShipments] =
+  const [reprintReceipts, reprintCompletions, tmCompletions, addressReceipts, printShipments, manualProjects] =
     await Promise.all([
       db.select().from(reprintReceiptsTable).orderBy(desc(reprintReceiptsTable.receivedAt)),
       db.select().from(reprintCompletionsTable).orderBy(desc(reprintCompletionsTable.completedAt)),
       db.select().from(twitterMarketingCompletionsTable).orderBy(desc(twitterMarketingCompletionsTable.completedAt)),
       db.select().from(addressReceiptsTable).orderBy(desc(addressReceiptsTable.receivedAt)),
       db.select().from(printShipmentsTable).orderBy(desc(printShipmentsTable.createdAt)),
+      db.select().from(manualProjectsTable).orderBy(desc(manualProjectsTable.createdAt)),
     ]);
 
-  // Deduplicate reprint receipts — latest occurrence per project
-  const projectMap = new Map<string, typeof reprintReceipts[0]>();
+  // Build a unified project map (key = "magazine|project" lowercased)
+  // Email-sourced projects come from reprint_receipts; manual projects fill the gaps.
+  const projectMap = new Map<string, {
+    magazine: string; project: string;
+    onlineDate: Date; source: "email" | "manual"; manualId?: number;
+  }>();
+
   for (const rr of reprintReceipts) {
     const key = `${rr.magazine.toLowerCase()}|${rr.project.toLowerCase()}`;
     if (!projectMap.has(key)) {
-      projectMap.set(key, rr);
+      projectMap.set(key, {
+        magazine: rr.magazine, project: rr.project,
+        onlineDate: subtractWorkingDays(rr.receivedAt, 2),
+        source: "email",
+      });
     }
   }
 
-  const rows = Array.from(projectMap.values()).map((rr) => {
-    const key = `${rr.magazine.toLowerCase()}|${rr.project.toLowerCase()}`;
+  // Add manual projects that don't already have an email record
+  for (const mp of manualProjects) {
+    const key = `${mp.magazine.toLowerCase()}|${mp.project.toLowerCase()}`;
+    if (!projectMap.has(key)) {
+      projectMap.set(key, {
+        magazine: mp.magazine, project: mp.project,
+        onlineDate: mp.createdAt,
+        source: "manual", manualId: mp.id,
+      });
+    }
+  }
 
-    const onlineDate = subtractWorkingDays(rr.receivedAt, 2);
+  const rows = Array.from(projectMap.values()).map((entry) => {
+    const key = `${entry.magazine.toLowerCase()}|${entry.project.toLowerCase()}`;
 
     const reprintCompletion =
       reprintCompletions.find(
         (rc) => `${rc.magazine.toLowerCase()}|${rc.project.toLowerCase()}` === key,
       ) ?? null;
 
+    // For manual projects also check manual_projects.reprint_completed_at
+    const manualEntry = manualProjects.find(
+      (mp) => `${mp.magazine.toLowerCase()}|${mp.project.toLowerCase()}` === key,
+    ) ?? null;
+
+    const reprintDone = !!reprintCompletion || (!!manualEntry?.reprintCompletedAt);
+    const reprintDoneDate = reprintCompletion?.completedAt.toISOString()
+      ?? manualEntry?.reprintCompletedAt?.toISOString()
+      ?? null;
+
     const tmCompletion =
       tmCompletions.find(
         (tm) => `${tm.magazine.toLowerCase()}|${tm.project.toLowerCase()}` === key,
       ) ?? null;
+
+    const tmDone = !!tmCompletion || (!!manualEntry?.twitterTaskCreated && !!manualEntry?.twitterTaskCreatedAt);
+    const tmDoneDate = tmCompletion?.completedAt.toISOString()
+      ?? manualEntry?.twitterTaskCreatedAt?.toISOString()
+      ?? null;
 
     const addressReceipt =
       addressReceipts.find(
@@ -937,14 +972,15 @@ router.get("/admin/project-tracker", requireAuth, requireAdmin, async (req, res)
       ) ?? null;
 
     return {
-      magazine: rr.magazine,
-      project: rr.project,
-      reprintReceiptDate: rr.receivedAt.toISOString(),
-      onlineDate: onlineDate.toISOString(),
-      reprintDone: !!reprintCompletion,
-      reprintDoneDate: reprintCompletion?.completedAt.toISOString() ?? null,
-      tmDone: !!tmCompletion,
-      tmDoneDate: tmCompletion?.completedAt.toISOString() ?? null,
+      magazine: entry.magazine,
+      project: entry.project,
+      onlineDate: entry.onlineDate.toISOString(),
+      source: entry.source,
+      manualId: entry.manualId ?? null,
+      reprintDone,
+      reprintDoneDate,
+      tmDone,
+      tmDoneDate,
       addressDone: !!addressReceipt,
       addressDoneDate: addressReceipt?.receivedAt.toISOString() ?? null,
       shippingDone: !!printShipment,
@@ -952,13 +988,78 @@ router.get("/admin/project-tracker", requireAuth, requireAdmin, async (req, res)
     };
   });
 
-  // Sort newest reprint first
+  // Sort newest online date first
   rows.sort(
-    (a, b) =>
-      new Date(b.reprintReceiptDate).getTime() - new Date(a.reprintReceiptDate).getTime(),
+    (a, b) => new Date(b.onlineDate).getTime() - new Date(a.onlineDate).getTime(),
   );
 
   res.json({ rows });
+});
+
+// Mark Reprint done for a project-tracker row (email-sourced)
+router.post("/admin/project-tracker/mark-reprint-done", requireAuth, requireAdmin, async (req, res) => {
+  const { magazine, project } = req.body as { magazine?: unknown; project?: unknown };
+  if (typeof magazine !== "string" || !magazine.trim()) { res.status(400).json({ error: "magazine required" }); return; }
+  if (typeof project !== "string" || !project.trim()) { res.status(400).json({ error: "project required" }); return; }
+  try {
+    await db.insert(reprintCompletionsTable).values({ magazine: magazine.trim(), project: project.trim() });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Failed" });
+  }
+});
+
+// Mark Twitter Marketing done for a project-tracker row (email-sourced)
+router.post("/admin/project-tracker/mark-twitter-done", requireAuth, requireAdmin, async (req, res) => {
+  const { magazine, project } = req.body as { magazine?: unknown; project?: unknown };
+  if (typeof magazine !== "string" || !magazine.trim()) { res.status(400).json({ error: "magazine required" }); return; }
+  if (typeof project !== "string" || !project.trim()) { res.status(400).json({ error: "project required" }); return; }
+  try {
+    await db.insert(twitterMarketingCompletionsTable).values({
+      magazine: magazine.trim(), project: project.trim(), printTaskCreated: false,
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? "Failed" });
+  }
+});
+
+// Mark Reprint done for a manual project
+router.patch("/admin/manual-projects/:id/mark-reprint-done", requireAuth, requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const now = new Date();
+  const [row] = await db
+    .update(manualProjectsTable)
+    .set({ reprintCompletedAt: now })
+    .where(eq(manualProjectsTable.id, id))
+    .returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  // Also write to reprint_completions so the project tracker picks it up
+  await db.insert(reprintCompletionsTable)
+    .values({ magazine: row.magazine, project: row.project })
+    .onConflictDoNothing()
+    .catch(() => {});
+  res.json({ success: true, reprintCompletedAt: now.toISOString() });
+});
+
+// Mark Twitter Marketing done for a manual project
+router.patch("/admin/manual-projects/:id/mark-twitter-done", requireAuth, requireAdmin, async (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const now = new Date();
+  const [row] = await db
+    .update(manualProjectsTable)
+    .set({ twitterTaskCreated: true, twitterTaskCreatedAt: now })
+    .where(eq(manualProjectsTable.id, id))
+    .returning();
+  if (!row) { res.status(404).json({ error: "Not found" }); return; }
+  // Also write to twitter_marketing_completions
+  await db.insert(twitterMarketingCompletionsTable)
+    .values({ magazine: row.magazine, project: row.project, printTaskCreated: false })
+    .onConflictDoNothing()
+    .catch(() => {});
+  res.json({ success: true, twitterTaskCreatedAt: now.toISOString() });
 });
 
 // ---------------------------------------------------------------------------
