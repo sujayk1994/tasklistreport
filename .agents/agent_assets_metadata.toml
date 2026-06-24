@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "X9E6F8Bhnrz7RlUkBkIMk"
+uri = "file://deploy.txt"
+type = "text"
+title = "Render Deployment Guide (updated)"
