@@ -1867,8 +1867,10 @@ function ManualProjectsTab() {
   const [showForm, setShowForm] = useState(false);
   const [magazine, setMagazine] = useState("");
   const [project, setProject] = useState("");
-  const [copies, setCopies] = useState("1");
   const [formError, setFormError] = useState<string | null>(null);
+  const [showBulk, setShowBulk] = useState(false);
+  const [bulkLines, setBulkLines] = useState("");
+  const [bulkResult, setBulkResult] = useState<{ inserted: number; skipped: number; skippedList: string[]; invalid: string[] } | null>(null);
 
   const { data, isLoading, refetch, isFetching } = useQuery<{ projects: ManualProjectRow[] }>({
     queryKey: ["admin-manual-projects"],
@@ -1881,7 +1883,7 @@ function ManualProjectsTab() {
   });
 
   const createMutation = useMutation({
-    mutationFn: async (payload: { magazine: string; project: string; copies: number }) => {
+    mutationFn: async (payload: { magazine: string; project: string }) => {
       const r = await fetch("/api/admin/manual-projects", {
         method: "POST",
         credentials: "include",
@@ -1895,9 +1897,27 @@ function ManualProjectsTab() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-manual-projects"] });
       setShowForm(false);
-      setMagazine(""); setProject(""); setCopies("1"); setFormError(null);
+      setMagazine(""); setProject(""); setFormError(null);
     },
     onError: (e: Error) => setFormError(e.message),
+  });
+
+  const bulkMutation = useMutation({
+    mutationFn: async (lines: string) => {
+      const r = await fetch("/api/admin/manual-projects/bulk", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lines }),
+      });
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(json?.error || "Failed to bulk add");
+      return json as { inserted: number; skipped: number; skippedList: string[]; invalid: string[] };
+    },
+    onSuccess: (result) => {
+      qc.invalidateQueries({ queryKey: ["admin-manual-projects"] });
+      setBulkResult(result);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -1967,6 +1987,15 @@ function ManualProjectsTab() {
             {seedMutation.isPending ? <RefreshCw size={13} className="animate-spin" /> : <Plus size={13} />}
             Seed Demo
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => { setShowBulk(true); setBulkLines(""); setBulkResult(null); }}
+          >
+            <Plus size={13} />
+            Bulk Add
+          </Button>
           <Button size="sm" className="gap-1.5" onClick={() => { setShowForm(true); setFormError(null); }}>
             <Plus size={13} />
             Add Project
@@ -1998,30 +2027,61 @@ function ManualProjectsTab() {
                 onChange={(e) => setProject(e.target.value)}
               />
             </div>
-            <div>
-              <Label className="text-xs">Copies</Label>
-              <Input
-                className="mt-1"
-                type="number"
-                min="1"
-                placeholder="1"
-                value={copies}
-                onChange={(e) => setCopies(e.target.value)}
-              />
-            </div>
+            <p className="text-[11px] text-muted-foreground">Copies will be fetched automatically from the address email.</p>
             {formError && <p className="text-xs text-red-500">{formError}</p>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancel</Button>
             <Button
               disabled={createMutation.isPending || !magazine.trim() || !project.trim()}
-              onClick={() => {
-                const copiesNum = parseInt(copies, 10);
-                if (isNaN(copiesNum) || copiesNum < 1) { setFormError("Copies must be a positive number"); return; }
-                createMutation.mutate({ magazine: magazine.trim(), project: project.trim(), copies: copiesNum });
-              }}
+              onClick={() => createMutation.mutate({ magazine: magazine.trim(), project: project.trim() })}
             >
               {createMutation.isPending ? "Saving…" : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showBulk} onOpenChange={(o) => { setShowBulk(o); if (!o) { setBulkResult(null); setBulkLines(""); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Bulk Add Projects</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <p className="text-xs text-muted-foreground">
+              One project per line. Format: <span className="font-mono bg-muted px-1 rounded">Magazine, Project</span>
+            </p>
+            <Textarea
+              className="font-mono text-sm min-h-[160px]"
+              placeholder={"Agribiotech, Eclipse Automation\nAgribiotech, Shugarman Architecture\nConstruction, Skyline Builds"}
+              value={bulkLines}
+              onChange={(e) => { setBulkLines(e.target.value); setBulkResult(null); }}
+            />
+            {bulkResult && (
+              <div className="rounded-md border p-3 space-y-1 text-xs">
+                <p className="font-medium text-emerald-700">{bulkResult.inserted} project{bulkResult.inserted !== 1 ? "s" : ""} added</p>
+                {bulkResult.skipped > 0 && (
+                  <div>
+                    <p className="text-amber-600">{bulkResult.skipped} skipped (already exist):</p>
+                    {bulkResult.skippedList.map((s, i) => <p key={i} className="text-muted-foreground pl-2">· {s}</p>)}
+                  </div>
+                )}
+                {bulkResult.invalid.length > 0 && (
+                  <div>
+                    <p className="text-red-500">{bulkResult.invalid.length} invalid line{bulkResult.invalid.length !== 1 ? "s" : ""} (missing comma?):</p>
+                    {bulkResult.invalid.map((s, i) => <p key={i} className="text-muted-foreground pl-2">· {s}</p>)}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulk(false)}>Close</Button>
+            <Button
+              disabled={bulkMutation.isPending || !bulkLines.trim()}
+              onClick={() => bulkMutation.mutate(bulkLines)}
+            >
+              {bulkMutation.isPending ? "Adding…" : "Add All"}
             </Button>
           </DialogFooter>
         </DialogContent>

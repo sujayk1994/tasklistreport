@@ -1085,10 +1085,9 @@ router.get("/admin/manual-projects", requireAuth, requireAdmin, async (_req, res
 });
 
 router.post("/admin/manual-projects", requireAuth, requireAdmin, async (req, res) => {
-  const { magazine, project, copies } = req.body as {
+  const { magazine, project } = req.body as {
     magazine?: unknown;
     project?: unknown;
-    copies?: unknown;
   };
 
   if (typeof magazine !== "string" || !magazine.trim()) {
@@ -1099,20 +1098,11 @@ router.post("/admin/manual-projects", requireAuth, requireAdmin, async (req, res
     res.status(400).json({ error: "project is required" });
     return;
   }
-  const copiesNum = typeof copies === "number" ? copies : parseInt(String(copies ?? "1"), 10);
-  if (isNaN(copiesNum) || copiesNum < 1) {
-    res.status(400).json({ error: "copies must be a positive number" });
-    return;
-  }
 
   try {
     const [row] = await db
       .insert(manualProjectsTable)
-      .values({
-        magazine: magazine.trim(),
-        project: project.trim(),
-        copies: copiesNum,
-      })
+      .values({ magazine: magazine.trim(), project: project.trim() })
       .returning();
     res.json({
       project: {
@@ -1135,6 +1125,52 @@ router.post("/admin/manual-projects", requireAuth, requireAdmin, async (req, res
       res.status(500).json({ error: "Failed to create project" });
     }
   }
+});
+
+router.post("/admin/manual-projects/bulk", requireAuth, requireAdmin, async (req, res) => {
+  const { lines } = req.body as { lines?: unknown };
+  if (typeof lines !== "string" || !lines.trim()) {
+    res.status(400).json({ error: "lines is required" });
+    return;
+  }
+
+  const parsed: { magazine: string; project: string }[] = [];
+  const invalid: string[] = [];
+
+  for (const raw of lines.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const commaIdx = line.indexOf(",");
+    if (commaIdx < 1) { invalid.push(line); continue; }
+    const mag = line.slice(0, commaIdx).trim();
+    const proj = line.slice(commaIdx + 1).trim();
+    if (!mag || !proj) { invalid.push(line); continue; }
+    parsed.push({ magazine: mag, project: proj });
+  }
+
+  if (parsed.length === 0) {
+    res.status(400).json({ error: "No valid lines found. Format: Magazine, Project (one per line)", invalid });
+    return;
+  }
+
+  const inserted: string[] = [];
+  const skipped: string[] = [];
+
+  for (const entry of parsed) {
+    try {
+      const [row] = await db
+        .insert(manualProjectsTable)
+        .values({ magazine: entry.magazine, project: entry.project })
+        .onConflictDoNothing({ target: [manualProjectsTable.magazine, manualProjectsTable.project] })
+        .returning({ id: manualProjectsTable.id });
+      if (row) inserted.push(`${entry.magazine} — ${entry.project}`);
+      else skipped.push(`${entry.magazine} — ${entry.project} (already exists)`);
+    } catch {
+      skipped.push(`${entry.magazine} — ${entry.project} (error)`);
+    }
+  }
+
+  res.json({ inserted: inserted.length, skipped: skipped.length, insertedList: inserted, skippedList: skipped, invalid });
 });
 
 router.delete("/admin/manual-projects/:id", requireAuth, requireAdmin, async (req, res) => {
