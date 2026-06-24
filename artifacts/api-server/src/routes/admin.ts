@@ -1144,4 +1144,54 @@ router.delete("/admin/manual-projects/:id", requireAuth, requireAdmin, async (re
   res.json({ success: true });
 });
 
+router.post("/admin/manual-projects/seed-demo", requireAuth, requireAdmin, async (_req, res) => {
+  const now = new Date();
+  const minus3d = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+  const minus5d = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000);
+
+  const demos = [
+    {
+      magazine: "Demo Magazine",
+      project: "Demo Project A",
+      copies: 5,
+      createdAt: minus3d,
+      reprintTaskCreated: false,
+      reprintTaskCreatedAt: null,
+      reprintCompletedAt: null,
+      twitterTaskCreated: false,
+      twitterTaskCreatedAt: null,
+    },
+    {
+      magazine: "Demo Magazine",
+      project: "Demo Project B",
+      copies: 3,
+      createdAt: minus5d,
+      reprintTaskCreated: true,
+      reprintTaskCreatedAt: minus3d,
+      reprintCompletedAt: minus3d,
+      twitterTaskCreated: false,
+      twitterTaskCreatedAt: null,
+    },
+  ];
+
+  const inserted: number[] = [];
+  const skipped: string[] = [];
+
+  for (const demo of demos) {
+    try {
+      const [row] = await db
+        .insert(manualProjectsTable)
+        .values(demo)
+        .onConflictDoNothing({ target: [manualProjectsTable.magazine, manualProjectsTable.project] })
+        .returning({ id: manualProjectsTable.id });
+      if (row) inserted.push(row.id);
+      else skipped.push(demo.project);
+    } catch {
+      skipped.push(demo.project);
+    }
+  }
+
+  res.json({ inserted: inserted.length, skipped });
+});
+
 export default router;

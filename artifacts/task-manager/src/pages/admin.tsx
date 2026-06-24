@@ -1911,6 +1911,19 @@ function ManualProjectsTab() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-manual-projects"] }),
   });
 
+  const seedMutation = useMutation({
+    mutationFn: async () => {
+      const r = await fetch("/api/admin/manual-projects/seed-demo", {
+        method: "POST",
+        credentials: "include",
+      });
+      const json = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(json?.error || "Failed to seed");
+      return json;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin-manual-projects"] }),
+  });
+
   function fmt(iso: string | null) {
     if (!iso) return "—";
     return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
@@ -1939,6 +1952,20 @@ function ManualProjectsTab() {
           <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} className="gap-1.5">
             <RefreshCw size={13} className={isFetching ? "animate-spin" : ""} />
             Refresh
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 text-muted-foreground"
+            disabled={seedMutation.isPending}
+            onClick={() => {
+              if (confirm("Insert 2 demo rows with backdated timestamps so you can see all status states?")) {
+                seedMutation.mutate();
+              }
+            }}
+          >
+            {seedMutation.isPending ? <RefreshCw size={13} className="animate-spin" /> : <Plus size={13} />}
+            Seed Demo
           </Button>
           <Button size="sm" className="gap-1.5" onClick={() => { setShowForm(true); setFormError(null); }}>
             <Plus size={13} />
