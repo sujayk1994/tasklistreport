@@ -1802,9 +1802,9 @@ function ProjectTrackerTab() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-muted/50 border-b">
-                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground w-10">#</th>
+                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground w-8">#</th>
                 <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Project</th>
-                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground whitespace-nowrap">Online Date</th>
+                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Online</th>
                 <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Reprint</th>
                 <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground whitespace-nowrap">Twitter Marketing</th>
                 <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Address</th>
@@ -1822,7 +1822,7 @@ function ProjectTrackerTab() {
                   <td className="px-3 py-3">
                     <div className="flex flex-col gap-0.5">
                       <Badge className="bg-blue-100 text-blue-700 border-blue-200 gap-1 w-fit">
-                        <CheckCheck size={10} /> Online
+                        <CheckCheck size={10} /> Done
                       </Badge>
                       <span className="text-[10px] text-muted-foreground">{fmtDate(row.onlineDate)}</span>
                     </div>
@@ -2041,12 +2041,12 @@ function ManualProjectsTab() {
             <thead>
               <tr className="bg-muted/50 border-b">
                 <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Project</th>
-                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Copies</th>
-                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Registered</th>
-                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Reprint Task</th>
-                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Reprint Done</th>
-                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Twitter Task</th>
-                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground w-10"></th>
+                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Online</th>
+                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Reprint</th>
+                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground whitespace-nowrap">Twitter Marketing</th>
+                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Address</th>
+                <th className="px-3 py-2.5 text-left font-medium text-xs text-muted-foreground">Shipping</th>
+                <th className="px-3 py-2.5 w-10"></th>
               </tr>
             </thead>
             <tbody>
@@ -2056,56 +2056,76 @@ function ManualProjectsTab() {
                   <tr key={proj.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
                     <td className="px-3 py-3">
                       <div className="font-medium text-sm leading-tight">{proj.project}</div>
-                      <div className="text-xs text-muted-foreground">{proj.magazine}</div>
+                      <div className="text-xs text-muted-foreground">{proj.magazine} · {proj.copies} copies</div>
                     </td>
-                    <td className="px-3 py-3 text-sm">{proj.copies}</td>
-                    <td className="px-3 py-3 text-xs text-muted-foreground">{fmt(proj.createdAt)}</td>
+
+                    {/* Online — always done (it's registered) */}
+                    <td className="px-3 py-3">
+                      <div className="flex flex-col gap-0.5">
+                        <Badge className="bg-blue-100 text-blue-700 border-blue-200 gap-1 w-fit">
+                          <CheckCheck size={10} /> Done
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground">{fmt(proj.createdAt)}</span>
+                      </div>
+                    </td>
+
+                    {/* Reprint — shows task creation date + completion date */}
                     <td className="px-3 py-3">
                       {proj.reprintTaskCreated ? (
                         <div className="flex flex-col gap-0.5">
-                          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 gap-1 w-fit">
-                            <CheckCheck size={10} /> Created
+                          <Badge className={proj.reprintCompletedAt
+                            ? "bg-emerald-100 text-emerald-700 border-emerald-200 gap-1 w-fit"
+                            : "bg-amber-100 text-amber-700 border-amber-200 gap-1 w-fit"
+                          }>
+                            <CheckCheck size={10} /> {proj.reprintCompletedAt ? "Done" : "In progress"}
                           </Badge>
-                          <span className="text-[10px] text-muted-foreground">{fmt(proj.reprintTaskCreatedAt)}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {proj.reprintCompletedAt ? fmt(proj.reprintCompletedAt) : `created ${fmt(proj.reprintTaskCreatedAt)}`}
+                          </span>
                         </div>
                       ) : (
-                        <Badge className="bg-amber-100 text-amber-700 border-amber-200 gap-1 w-fit">
-                          <Clock size={10} /> Pending (2d)
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="px-3 py-3">
-                      {proj.reprintCompletedAt ? (
                         <div className="flex flex-col gap-0.5">
-                          <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 gap-1 w-fit">
-                            <CheckCheck size={10} /> Done
+                          <Badge className="bg-slate-100 text-slate-500 border-slate-200 gap-1 w-fit">
+                            <Clock size={10} /> Pending
                           </Badge>
-                          <span className="text-[10px] text-muted-foreground">{fmt(proj.reprintCompletedAt)}</span>
+                          <span className="text-[10px] text-muted-foreground">auto in 2d</span>
                         </div>
-                      ) : (
-                        <Badge className="bg-slate-100 text-slate-500 border-slate-200 gap-1 w-fit">
-                          <Clock size={10} /> Not yet
-                        </Badge>
                       )}
                     </td>
+
+                    {/* Twitter Marketing */}
                     <td className="px-3 py-3">
                       {proj.twitterTaskCreated ? (
                         <div className="flex flex-col gap-0.5">
                           <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 gap-1 w-fit">
-                            <CheckCheck size={10} /> Created
+                            <CheckCheck size={10} /> Done
                           </Badge>
                           <span className="text-[10px] text-muted-foreground">{fmt(proj.twitterTaskCreatedAt)}</span>
                         </div>
                       ) : status === "reprint-done" || status === "twitter-pending" ? (
-                        <Badge className="bg-amber-100 text-amber-700 border-amber-200 gap-1 w-fit">
-                          <Clock size={10} /> Pending (2d)
-                        </Badge>
+                        <div className="flex flex-col gap-0.5">
+                          <Badge className="bg-amber-100 text-amber-700 border-amber-200 gap-1 w-fit">
+                            <Clock size={10} /> Pending
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground">auto in 2d</span>
+                        </div>
                       ) : (
                         <Badge className="bg-slate-100 text-slate-500 border-slate-200 gap-1 w-fit">
                           <Clock size={10} /> Waiting
                         </Badge>
                       )}
                     </td>
+
+                    {/* Address — handled via email flow after TM completion */}
+                    <td className="px-3 py-3">
+                      <span className="text-xs text-muted-foreground">—</span>
+                    </td>
+
+                    {/* Shipping — handled via email flow */}
+                    <td className="px-3 py-3">
+                      <span className="text-xs text-muted-foreground">—</span>
+                    </td>
+
                     <td className="px-3 py-3">
                       <Button
                         size="sm"
